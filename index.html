@@ -37,8 +37,42 @@
       </button>
       <div id="optimize-menu-list" class="data-menu-list filter-menu-list" hidden>
         <div class="filter-section-label">Weight each stat, then optimize</div>
-        <p class="optimize-weight-hint">Weights are relative, not percentages — 2:1 and 200:100 pick the same loadout.</p>
+        <p class="optimize-weight-hint">Weights are relative, not percentages — 2:1 and 200:100 pick the same loadout. Each stat is scaled to its own range first, so a weight means the same "how much I care" whether the stat is a flat number or a small percentage.</p>
+        <label class="optimize-context-row">
+          <span class="optimize-context-label">Preset</span>
+          <select id="optimize-troop-select" class="optimize-context-select">
+            <option value="custom">Custom (set weights below)</option>
+            <option value="mixed">Mixed</option>
+            <option value="infantry">Infantry</option>
+            <option value="archer">Archer</option>
+            <option value="cavalry">Cavalry</option>
+            <option value="infantryCavalry">Infantry / Cavalry</option>
+            <option value="infantryArcher">Infantry / Archer</option>
+            <option value="gathering">Gathering</option>
+          </select>
+        </label>
+        <p class="optimize-weight-hint">Pick a preset to auto-fill the weights below — the troop presets build for PvP, single-type or a two-troop march, Gathering builds for resource runs — then tweak as needed. Editing any weight switches this back to Custom.</p>
+        <label class="optimize-context-row">
+          <span class="optimize-context-label">Scenario</span>
+          <select id="optimize-context-select" class="optimize-context-select"></select>
+        </label>
+        <p class="optimize-weight-hint">Set bonuses that only apply in a scenario (e.g. Beastlord's Hunt in Monster Dens) count toward the pick only when that scenario is selected.</p>
         <div class="filter-menu-list-inner optimize-weight-list" id="optimize-weight-list"></div>
+        <div class="optimize-context-row optimize-troop-save-row">
+          <span class="optimize-context-label">Save as default for</span>
+          <select id="optimize-troop-save-select" class="optimize-context-select" aria-label="Preset to save the current weights as the default for">
+            <option value="mixed">Mixed</option>
+            <option value="infantry">Infantry</option>
+            <option value="archer">Archer</option>
+            <option value="cavalry">Cavalry</option>
+            <option value="infantryCavalry">Infantry / Cavalry</option>
+            <option value="infantryArcher">Infantry / Archer</option>
+            <option value="gathering">Gathering</option>
+          </select>
+          <button id="optimize-troop-save-btn" class="optimize-troop-save-btn" type="button" title="Save the current weights as your own default for this preset.">Save</button>
+          <button id="optimize-troop-reset-btn" class="optimize-troop-reset-btn" type="button" hidden title="Discard your saved default for this preset and go back to the built-in one.">Reset</button>
+        </div>
+        <p class="optimize-weight-hint">Save the weights above as your own default for a preset. Saved defaults load whenever you pick that preset and travel with your backup export.</p>
         <div class="optimize-menu-actions">
           <button id="optimize-clear-btn" class="data-menu-item filter-clear-btn" type="button">Clear weights</button>
           <button id="optimize-run-btn" class="data-menu-item optimize-run-btn" type="button">Optimize unlocked slots</button>
@@ -65,6 +99,7 @@
         Data ▾
       </button>
       <div id="data-menu-list" class="data-menu-list" hidden>
+        <a href="sets.html" target="_blank" rel="noopener" class="data-menu-item data-menu-link">Set bonuses reference ↗</a>
         <button id="load-equipment-csv-btn" class="data-menu-item" type="button">Load equipment CSV…</button>
         <button id="paste-equipment-csv-btn" class="data-menu-item" type="button">Paste equipment CSV…</button>
         <button id="sync-gear-btn" class="data-menu-item" type="button">Sync my gear…</button>
@@ -99,7 +134,44 @@
 </div>
 
 <main class="layout">
-  <section class="slots" id="slots" aria-label="Equipment slots"></section>
+  <div class="layout-main">
+    <section class="slots" id="slots" aria-label="Equipment slots"></section>
+
+    <section id="upgrade-plan-wrap" class="upgrade-plan-wrap" aria-label="Upgrade plan">
+      <h2 class="panel-heading">
+        <button id="upgrade-plan-toggle" class="panel-toggle" type="button"
+                aria-expanded="false" aria-controls="upgrade-plan-body">
+          <span class="panel-toggle-caret" aria-hidden="true">▸</span>Upgrade plan
+        </button>
+      </h2>
+      <div id="upgrade-plan-body" hidden>
+        <div class="upgrade-plan-controls">
+          <p id="upgrade-plan-summary" class="upgrade-plan-summary"></p>
+          <label class="upgrade-plan-horizon-row">
+            <span>Look ahead</span>
+            <input id="upgrade-plan-horizon" type="number" min="1" step="10000" inputmode="numeric">
+            <span>XP</span>
+          </label>
+        </div>
+        <ul id="upgrade-plan" class="upgrade-plan"></ul>
+      </div>
+    </section>
+
+    <section id="pvp-plan-wrap" class="upgrade-plan-wrap pvp-plan-wrap" aria-label="PvP shop buy plan">
+      <h2 class="panel-heading">
+        <button id="pvp-plan-toggle" class="panel-toggle" type="button"
+                aria-expanded="true" aria-controls="pvp-plan-body">
+          <span class="panel-toggle-caret" aria-hidden="true">▸</span>PvP shop — what to buy next
+        </button>
+      </h2>
+      <div id="pvp-plan-body">
+        <div class="upgrade-plan-controls">
+          <p id="pvp-plan-summary" class="upgrade-plan-summary"></p>
+        </div>
+        <ul id="pvp-plan" class="upgrade-plan"></ul>
+      </div>
+    </section>
+  </div>
 
   <aside class="ledger-panel" aria-label="Loadout totals">
     <h2 class="panel-heading">Totals</h2>
@@ -107,10 +179,16 @@
       <p class="ledger-empty">No items selected yet. Pick gear on the left, or auto-optimize above.</p>
     </div>
 
+    <div id="army-command-wrap" class="army-command-wrap" hidden>
+      <h2 class="panel-heading">Army command</h2>
+      <ul id="army-command" class="ledger army-command"></ul>
+    </div>
+
     <div id="set-notes-wrap" class="set-notes-wrap" hidden>
       <h2 class="panel-heading">Set pieces</h2>
       <ul id="set-notes" class="set-notes"></ul>
     </div>
+
   </aside>
 </main>
 
@@ -165,6 +243,9 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="sample-data.js"></script>
+<script src="hero-breakpoints.js"></script>
+<script src="gear-progression.js"></script>
+<script src="pvp-shop.js"></script>
 <script src="set-bonuses.js"></script>
 <script src="csv-import.js"></script>
 <script src="app.js"></script>

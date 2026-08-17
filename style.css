@@ -7,6 +7,14 @@
   --text-dim: #8b93a1;
   --text-faint: #5a6270;
   --accent: #d8a34a;
+  /* The plan panels' value bars, and nothing else. Muted on purpose: the bars
+     measure how good a row is, while every other coloured thing in a plan row
+     names WHAT the row is about, so the bar has to stay quiet enough not to be
+     read as a category. Gold read as Legendary and a cool blue read as Rare;
+     a saturated teal avoided that but shouted louder than the figures it was
+     summarising. Slate is a step darker and flatter than --common, the nearest
+     rarity, and still clears the --line track it sits on. */
+  --meter: #707a89;
 
   --common: #9ba3ad;
   --uncommon: #5fb87a;
@@ -220,6 +228,18 @@ select {
   outline: none;
 }
 
+a.data-menu-item {
+  display: block;
+  text-decoration: none;
+}
+
+.data-menu-link {
+  color: var(--accent);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.25rem;
+  padding-bottom: 0.55rem;
+}
+
 .filter-count-badge {
   background: var(--accent);
   color: #1a1408;
@@ -266,6 +286,63 @@ select {
   color: var(--text-dim);
   padding: 0 0.6rem 0.5rem;
   line-height: 1.35;
+}
+
+.optimize-context-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.6rem 0.4rem;
+}
+
+.optimize-context-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+/* Same chrome as the hero picker in the topbar — a bare native select renders
+   with the OS's own light background, which reads as a hole in a dark menu. */
+.optimize-context-select {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel-raised);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.optimize-context-select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Separates the save controls from the weight list they act on. */
+.optimize-troop-save-row {
+  margin-top: 0.7rem;
+}
+
+.optimize-troop-save-btn,
+.optimize-troop-reset-btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-faint);
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.optimize-troop-save-btn:hover, .optimize-troop-save-btn:focus-visible,
+.optimize-troop-reset-btn:hover, .optimize-troop-reset-btn:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .filter-checkbox-item {
@@ -563,12 +640,25 @@ select {
   background: var(--slot-accent, var(--text-faint));
 }
 
+/* Level and quality are the two figures a reader actually compares between two
+   copies of the same piece, so they carry the line's contrast — the rarity word
+   beside them is already colour-coded by the dot and stays dim. */
+.item-level,
+.quality-pct {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Follows the meta line directly. Pinning it to the bottom of the card (which
+   the grid stretches to the tallest in its row) opened a gap under the shorter
+   card's meta line and read as a stat block floating in the middle of nowhere —
+   the slack belongs at the end of the card, not inside the item's own text. */
 .slot-stats {
   font-family: var(--font-mono);
   font-size: 0.72rem;
   color: var(--text-dim);
   line-height: 1.5;
-  margin-top: auto;
 }
 
 /* ---------- Ledger ---------- */
@@ -593,6 +683,60 @@ select {
   margin: 0 0 0.75rem;
   border-bottom: 1px solid var(--line);
   padding-bottom: 0.5rem;
+}
+
+/* The heading IS the control — the panel is always on the page, and clicking
+   its title opens it. A separate button beside the title would be a second
+   thing to aim at for one behaviour, so the whole heading takes the click. */
+.panel-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.panel-toggle:hover,
+.panel-toggle:focus-visible {
+  color: var(--text);
+  outline: none;
+}
+
+/* A panel with nothing to say yet — the heading stays readable, but it stops
+   offering a click that would only open an empty box. */
+.panel-toggle:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.panel-toggle:disabled:hover {
+  color: inherit;
+}
+
+.panel-toggle-caret {
+  font-size: 0.7em;
+  color: var(--accent);
+  transition: transform 0.15s;
+}
+
+.panel-toggle[aria-expanded="true"] .panel-toggle-caret {
+  transform: rotate(90deg);
+}
+
+/* Collapsed, the heading is the whole panel — the rule under it would be
+   separating it from content that isn't there. */
+.is-collapsed .panel-heading {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .ledger-empty {
@@ -628,6 +772,247 @@ select {
 @keyframes flash-value {
   0%   { color: var(--accent); text-shadow: 0 0 8px rgba(216,163,74,0.6); }
   100% { color: var(--text); text-shadow: none; }
+}
+
+/* Army command — the troop buff the hero's raw stats actually buy. Deliberately
+   built from the ledger's own .ledger-row classes so it reads as a continuation
+   of Totals rather than a differently-shaped panel bolted underneath. The raw
+   stat and cap threshold live in each row's title, keeping the line itself to
+   the one thing worth scanning: the percentage. */
+.army-command-wrap {
+  margin-top: 1.1rem;
+}
+
+/* It borrows .ledger for the row rhythm, so strip the list chrome that a <ul>
+   brings and .ledger (a <div>) never had to. */
+.army-command {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Distance to the ceiling, sitting just left of the percentage. Quiet enough
+   not to compete with the number it annotates, but always present — knowing
+   there's headroom is as useful as knowing there isn't. */
+.army-command-cap {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-right: 0.5rem;
+}
+
+/* Past the ceiling the stat is dead weight, so this one earns more contrast. */
+.army-command-cap.is-over {
+  color: var(--text-dim);
+}
+
+/* Column 1 stacks the gear and the plan together, so the plan follows the gear
+   by its own small gap. As a grid item in its own right it sat on the layout's
+   second ROW, whose height is set by whichever column is taller — the sidebar —
+   which pushed it far below the gear it belongs to. */
+.layout-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+/* Not a sidebar card — the plan is a table of comparable rows, and at the
+   sidebar's 300px they stacked one per line with the benefit figures
+   wrapping. */
+.upgrade-plan-wrap {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.2rem;
+}
+
+.upgrade-plan-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.upgrade-plan-horizon-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.upgrade-plan-horizon-row input {
+  flex: 0 1 6.5rem;
+  min-width: 0;
+  background: var(--panel-raised);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 0.25rem 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: normal;
+}
+
+.upgrade-plan-horizon-row input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.upgrade-plan-summary {
+  margin: 0;
+  flex: 1 1 20rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.upgrade-plan {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* Measured, not guessed: the Command benefit figures are the line that must
+     not wrap, since it appears on every row. At the 0.76rem type above they run
+     to 279px, and 22rem leaves a card 344px wide inside its padding — room to
+     spare, and still narrow enough to keep two cards side by side in the main
+     column. Re-measure before widening this: 24.5rem looks harmless and costs
+     the second column outright. */
+  grid-template-columns: repeat(auto-fill, minmax(min(22rem, 100%), 1fr));
+  gap: 0.6rem;
+}
+
+/* Column so the value bar can be pinned to the bottom of the card — see
+   .upgrade-plan-bar-slot.
+
+   The left edge carries the piece's RARITY, the same colour it wears on its
+   slot card and in the picker — a row about the Legendary you're wearing had no
+   business being the same gold as the Common two rows down. Rarity is also the
+   one thing these rows never say in words, unlike the level and the XP. */
+.upgrade-plan-row {
+  background: var(--panel-raised);
+  border-left: 2px solid var(--slot-accent, var(--accent));
+  padding: 0.5rem 0.6rem;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.upgrade-plan-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+/* Sized off the slot cards these rows describe, a notch down rather than a
+   different order of magnitude — the cards run 1.05rem/0.72rem, and the plan
+   was reading at 0.84/0.68 for the same words about the same gear. */
+.upgrade-plan-name {
+  font-family: var(--font-display);
+  font-size: 0.98rem;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+.upgrade-plan-value {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.upgrade-plan-meta,
+.upgrade-plan-stats {
+  margin-top: 0.2rem;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.upgrade-plan-stats {
+  color: var(--text-dim);
+}
+
+.upgrade-plan-stats-lead {
+  /* Subordinate by case and tracking, not by fading it to 2.35:1 — it's a
+     word the reader needs, not decoration. */
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.92em;
+}
+
+/* The number is what the row is ranked on, so it gets the strongest contrast
+   in the line rather than the weakest. */
+.upgrade-plan-gain {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* A stat that moved but carries no weight, so the bar below never counted it.
+   Demoted by taking the emphasis OFF its figure rather than by fading the pair
+   out: --text-faint here would be 2.33:1 on this card, and these are true
+   statements about the piece that a reader may well want. Losing the bold and
+   the bright ink is enough — the weighted figures beside it are what the eye
+   lands on now. */
+.upgrade-plan-gain-part.is-unweighted .upgrade-plan-gain {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.upgrade-plan-gain-part {
+  white-space: nowrap;
+}
+
+/* Takes up whatever slack the card has left, which puts every bar in a grid
+   line on the same baseline no matter how many stat lines the rows above them
+   ran to. The padding is the bar's minimum breathing room from the text, for
+   the tallest card in the line — the one with no slack to give. */
+.upgrade-plan-bar-slot {
+  margin-top: auto;
+  padding-top: 0.4rem;
+}
+
+/* Value per XP against the best row — the ranking is the point of the panel,
+   so it gets a shape you can scan without reading the numbers. */
+.upgrade-plan-bar {
+  height: 3px;
+  background: var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.upgrade-plan-bar span {
+  display: block;
+  height: 100%;
+  background: var(--meter);
+}
+
+/* A caveat on the row it applies to, not a stat — pulled back so it reads as
+   an aside rather than competing with the gain figures above it. */
+.pvp-plan-owned,
+.pvp-plan-rolls {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* A swap can cost a stat as well as buy one, so the losses have to be as
+   legible as the gains — same weight, different hue. Not red: these rows are
+   recommendations that came out ahead on balance, and a warning colour would
+   argue against the row it sits on. */
+.upgrade-plan-loss {
+  color: var(--rare);
 }
 
 .set-notes-wrap {
@@ -959,6 +1344,126 @@ select {
   border-radius: var(--radius);
   font-size: 0.82rem;
   z-index: 60;
+}
+
+/* ---------- Set bonuses reference page ---------- */
+
+.sets-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1.75rem 3rem;
+}
+
+.sets-back-link {
+  display: inline-block;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-decoration: none;
+  margin-bottom: 1.5rem;
+}
+
+.sets-back-link:hover, .sets-back-link:focus-visible {
+  color: var(--accent);
+}
+
+.sets-intro {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin: 0 0 2rem;
+  max-width: 60ch;
+}
+
+.set-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.4rem;
+  margin-bottom: 1.25rem;
+}
+
+.set-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.9rem;
+}
+
+.set-card-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.25rem;
+  margin: 0;
+  color: var(--text);
+}
+
+.set-applies-badge {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  white-space: nowrap;
+}
+
+.set-card-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.4rem;
+}
+
+@media (max-width: 620px) {
+  .set-card-cols { grid-template-columns: 1fr; }
+}
+
+.set-subhead {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin: 0 0 0.5rem;
+}
+
+.set-pieces-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.set-pieces-list li {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  padding: 0.2rem 0;
+}
+
+.set-tier {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.set-tier:last-child { border-bottom: none; }
+
+.set-tier-count {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  margin-bottom: 0.15rem;
+}
+
+.set-tier-bonuses {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.set-tier-bonuses .set-stat {
+  color: var(--uncommon);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Rarity color helper classes ---------- */

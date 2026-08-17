@@ -133,6 +133,78 @@ function slotMapsEqual(a, b) {
   return SLOT_ORDER.every((slot) => a[slot] === b[slot]);
 }
 
+/** The three flat stats that feed a hero's breakpoint curve. */
+const HERO_BASE_STAT_KEYS = ["attack", "defense", "health"];
+
+/** The flat stats a hero is ALREADY carrying from equipped gear, as raw
+ * unmultiplied item values — the march set only, never the instanced one.
+ *
+ * hero_stats is the hero's current total exactly as the game's hero screen
+ * shows it (Gatherer Elena's card reads 202K/157K/1.0M against a hero_stats of
+ * 201,614/157,147/1,028,858), which means the gear already on her is baked
+ * into it. To work out what a DIFFERENT loadout would give, the app has to
+ * know how much of that total the current gear accounts for — that's this.
+ *
+ * March-only matters: a hero can hold two equip states at once (the export's
+ * first item list is the march set, the second is arena/PvP), and hero_stats
+ * reflects only the march one. Subtracting the instanced set goes negative —
+ * Kael's instanced gear carries 209,842 defence against a hero_stats defence
+ * of 91,578 — and a hero cannot have negative gearless defence. Confirmed
+ * outright since: three heroes with a known gearless curve were each given one
+ * march item and no instanced item, and hero_stats moved by exactly the march
+ * item's stats times the gear multiplier, to five significant figures.
+ *
+ * Recorded once per hero and shared by both pseudo-owners of a split hero,
+ * since it describes the hero's exported state, not whichever loadout is being
+ * previewed. Set bonuses are all percentage stats (see set-bonuses.js), so
+ * they contribute no flat stats and never enter this sum.
+ *
+ * These are RAW item values, deliberately not scaled by the account's
+ * Equipment Stat Bonus or Hero Research — see heroStatTotalsFor() in app.js,
+ * which applies heroGearMultiplier() at the point of use so changing either
+ * re-scores without needing a re-import.
+ */
+function heroEquippedGearTotals(marchSlotMap, equipmentByItemId) {
+  const totals = {};
+  for (const key of HERO_BASE_STAT_KEYS) totals[key] = 0;
+  for (const itemId of Object.values(marchSlotMap)) {
+    if (!itemId) continue;
+    const it = equipmentByItemId.get(itemId);
+    if (!it) continue;
+    for (const key of HERO_BASE_STAT_KEYS) totals[key] += it.rawStats[key] || 0;
+  }
+  return totals;
+}
+
+function heroStatTotalsFromExport(heroStats) {
+  const totals = {};
+  for (const key of HERO_BASE_STAT_KEYS) totals[key] = Number(heroStats[key]) || 0;
+  return totals;
+}
+
+/** The gearless Attack/Defence/Health hero-breakpoints.js projects for this
+ * hero at this level, or null for a hero with no fitted growth row (which is
+ * most of them — see HERO_BASE_STATS).
+ *
+ * These are in export units: the hero's own base with Hero Research already
+ * multiplied in, and no gear. That's deliberate, because it makes the
+ * difference against a reading say something exact —
+ *
+ *     statTotals - knownBase = equippedGearTotals x heroGearMultiplier(stat)
+ *
+ * with heroGearMultiplier being the Equipment Stat Bonus and the research
+ * compounded, 1.2190 on attack and defence and 1.1960 on health. Every term is
+ * known, so this needs no prior import and no user-entered number. Specialty is
+ * dropped because nothing downstream scores a flat specialty value — and gear
+ * doesn't move it anyway. */
+function heroKnownBaseStats(definitionId, level) {
+  const projected = heroStatsAtLevel(definitionId, level);
+  if (!projected) return null;
+  const base = {};
+  for (const key of HERO_BASE_STAT_KEYS) base[key] = projected[key];
+  return base;
+}
+
 /** Convert the game's CSV export text into the same {heroes, equipment,
  * knownSetSizes} shape as equipment-data.json, so it can go through the
  * exact same applyEquipmentData() path as a manually-exported JSON file.
@@ -181,6 +253,13 @@ function convertCsvToEquipmentData(csvText) {
       slot: r.slot,
       rarity: r.rarity,
       level: parseInt(r.level, 10) || 0,
+      // The level this item can be enhanced to. Carried through so the
+      // max-level projection (gear-progression.js) uses the game's own cap
+      // rather than inferring one from rarity.
+      maxLevel: parseInt(r.max_level, 10) || null,
+      quality: r.quality_percent != null && r.quality_percent !== ""
+        ? parseInt(r.quality_percent, 10)
+        : null,
       setId,
       equippedByOwnerIds: [],
       rawStats,
@@ -222,14 +301,38 @@ function convertCsvToEquipmentData(csvText) {
     const marchMap = slotMapFromItemIds(marchItemIds, equipmentByItemId);
     const instancedMap = slotMapFromItemIds(instancedItemIds, equipmentByItemId);
 
+    // Rarity picks which breakpoint curve converts this hero's flat
+    // Attack/Defence/Health into the troop buff they actually grant, so the
+    // optimizer can weigh a flat roll against a percentage one.
+    const heroStats = safeJsonParse(r.hero_stats, {});
+    const rarity = heroRarityFromDefinitionId(r.hero_definition_id);
+    const heroLevel = parseInt(r.hero_level, 10) || 0;
+    const loadoutsAgree = slotMapsEqual(marchMap, instancedMap);
+    const heroFields = {
+      rarity,
+      definitionId: r.hero_definition_id || null,
+      // The hero's current total as exported, plus how much of it the gear
+      // already on them accounts for. Both pseudo-owners share these — see
+      // heroEquippedGearTotals.
+      // Level is what makes a base comparable across imports: same hero, same
+      // level, same gearless base — which is what lets the Hero Stat Bonus be
+      // re-derived later (see deriveHeroStatBonus in app.js).
+      level: heroLevel,
+      statTotals: heroStatTotalsFromExport(heroStats),
+      equippedGearTotals: heroEquippedGearTotals(marchMap, equipmentByItemId),
+      // Null for all but the few heroes with a fitted growth row. Read the
+      // units note on heroKnownBaseStats before using it.
+      knownBase: heroKnownBaseStats(r.hero_definition_id, heroLevel),
+    };
+
     const assign = (ownerId, slotMap) => {
       for (const itemId of Object.values(slotMap)) {
         if (itemId) equipmentByItemId.get(itemId).equippedByOwnerIds.push(ownerId);
       }
     };
 
-    if (slotMapsEqual(marchMap, instancedMap)) {
-      heroes.push({ id: r.hero_id, name: heroDisplayName });
+    if (loadoutsAgree) {
+      heroes.push({ id: r.hero_id, name: heroDisplayName, ...heroFields });
       heroLoadouts[r.hero_id] = marchMap;
       assign(r.hero_id, marchMap);
     } else {
@@ -237,8 +340,8 @@ function convertCsvToEquipmentData(csvText) {
       const instancedLabel = setLabelForExclusiveItems(instancedItemIds, marchItemIds, r.hero_id) || "Instanced";
       const marchOwnerId = `${r.hero_id}::march`;
       const instancedOwnerId = `${r.hero_id}::instanced`;
-      heroes.push({ id: marchOwnerId, name: `${heroDisplayName} — ${marchLabel}` });
-      heroes.push({ id: instancedOwnerId, name: `${heroDisplayName} — ${instancedLabel}` });
+      heroes.push({ id: marchOwnerId, name: `${heroDisplayName} — ${marchLabel}`, ...heroFields });
+      heroes.push({ id: instancedOwnerId, name: `${heroDisplayName} — ${instancedLabel}`, ...heroFields });
       heroLoadouts[marchOwnerId] = marchMap;
       heroLoadouts[instancedOwnerId] = instancedMap;
       assign(marchOwnerId, marchMap);

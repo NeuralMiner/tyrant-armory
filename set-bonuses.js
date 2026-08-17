@@ -6,11 +6,18 @@
  *
  * Any setId NOT listed here falls back to an "unknown bonus" note in app.js —
  * this table only covers sets a guild member has actually screenshotted.
+ *
+ * Every set's bonus is CONDITIONAL on a scenario, named by `context`
+ * (a stable key) and shown to the user via `appliesIn` (a display label).
+ * Beastlord's +Attack/+Health, for example, is live ONLY inside Monster
+ * Dens — so it must not sway scoring when you're optimizing army attack for
+ * anything else. Sets with no condition should use context "always".
  */
 const SET_BONUS_DEFS = {
   beast: {
     name: "Beastlord's Hunt",
     appliesIn: "Monster Dens",
+    context: "monsterDen",
     totalPieces: 4,
     memberNames: ["Beastfang Dagger", "Wolfhide Vest", "Tracker's Hood", "Stalker Boots"],
     tiers: [
@@ -21,6 +28,7 @@ const SET_BONUS_DEFS = {
   gatherers: {
     name: "Prospector's Kit",
     appliesIn: "Gathering",
+    context: "gathering",
     totalPieces: 3,
     memberNames: ["Miner's Pick", "Master Miner's Helm", "Merchant's Pouch"],
     tiers: [
@@ -31,6 +39,7 @@ const SET_BONUS_DEFS = {
   conqueror: {
     name: "Conqueror's Regalia",
     appliesIn: "Player Combat",
+    context: "playerCombat",
     totalPieces: 6,
     memberNames: [
       "Conqueror's Pendant",
@@ -49,6 +58,7 @@ const SET_BONUS_DEFS = {
   warden: {
     name: "Warden's Vigil",
     appliesIn: "Player Combat",
+    context: "playerCombat",
     totalPieces: 6,
     memberNames: [
       "Warden's Greaves",
@@ -67,11 +77,46 @@ const SET_BONUS_DEFS = {
 };
 
 /**
+ * Whether a set's bonuses should count toward scoring in a given context.
+ * `activeContext === null` means "count everything regardless of scenario" —
+ * used by the raw ledger, which shows every bonus and labels the conditional
+ * ones. `"general"` means "only unconditional bonuses" — the safe default for
+ * optimizing a stat (e.g. army attack) outside any special scenario, so a
+ * Monster-Dens-only bonus doesn't skew the pick. Any other value matches a
+ * set's own `context`, letting you deliberately optimize FOR that scenario.
+ */
+function setBonusAppliesInContext(def, activeContext) {
+  if (activeContext === null || activeContext === undefined) return true;
+  const setContext = def.context || "always";
+  if (setContext === "always") return true;
+  return setContext === activeContext;
+}
+
+/** Scenario options for the optimize panel: "general" (no conditional
+ * bonuses) plus one entry per distinct conditional context among known sets,
+ * labeled with that context's `appliesIn` text. */
+function optimizeContextOptions() {
+  const options = [{ value: "general", label: "General (no conditional bonuses)" }];
+  const seen = new Set();
+  for (const def of Object.values(SET_BONUS_DEFS)) {
+    const ctx = def.context || "always";
+    if (ctx === "always" || seen.has(ctx)) continue;
+    seen.add(ctx);
+    options.push({ value: ctx, label: def.appliesIn });
+  }
+  return options;
+}
+
+/**
  * Given selected items (loadout values, nulls filtered out already), compute
  * the active cumulative bonus per stat key, aggregated across every set with
  * 2+ selected pieces. Returns { statKey: totalBonusValue }.
+ *
+ * `activeContext` filters which sets contribute — see setBonusAppliesInContext.
+ * Defaults to null (count everything) so existing raw-ledger callers are
+ * unaffected; the optimizer passes the user's chosen scenario.
  */
-function computeActiveSetBonusStats(selectedItems) {
+function computeActiveSetBonusStats(selectedItems, activeContext = null) {
   const countsBySet = {};
   for (const item of selectedItems) {
     if (item.setId) countsBySet[item.setId] = (countsBySet[item.setId] || 0) + 1;
@@ -81,6 +126,7 @@ function computeActiveSetBonusStats(selectedItems) {
   for (const [setId, count] of Object.entries(countsBySet)) {
     const def = SET_BONUS_DEFS[setId];
     if (!def) continue;
+    if (!setBonusAppliesInContext(def, activeContext)) continue;
     for (const tier of def.tiers) {
       if (count >= tier.pieces) {
         for (const [statKey, value] of Object.entries(tier.bonuses)) {
@@ -125,7 +171,9 @@ function buildSetNotes(selectedItems, knownSetSizes) {
             .map(([statKey, value]) => `${STAT_LABELS[statKey] || statKey} +${(value * 100).toFixed(1)}%`)
             .join(", ")
         : "none yet";
-      let text = `${def.name} (${count}/${def.totalPieces}): ${activeText}`;
+      const contextSuffix =
+        def.context && def.context !== "always" ? ` — applies in ${def.appliesIn}` : "";
+      let text = `${def.name} (${count}/${def.totalPieces}): ${activeText}${contextSuffix}`;
       if (nextTier) {
         const nextText = Object.entries(nextTier.bonuses)
           .map(([statKey, value]) => `${STAT_LABELS[statKey] || statKey} +${(value * 100).toFixed(1)}%`)
