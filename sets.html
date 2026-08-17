@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set Bonuses — Hero Armory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-title">
+    <span class="topbar-eyebrow">Hero Armory</span>
+    <h1>Set Bonuses</h1>
+  </div>
+</header>
+
+<main class="sets-page">
+  <a href="index.html" class="sets-back-link">← Back to Loadout Builder</a>
+  <p class="sets-intro">
+    Every documented equipment set and the cumulative bonus it grants at each
+    tier. Bonuses stack across tiers — the totals below are what you actually
+    get at that piece count, not the per-tier increment. Each set's bonus only
+    applies in the scenario shown on its badge.
+  </p>
+  <div id="sets-container"></div>
+</main>
+
+<script src="sample-data.js"></script>
+<script src="hero-breakpoints.js"></script>
+<script src="set-bonuses.js"></script>
+<script>
+  (function () {
+    const container = document.getElementById("sets-container");
+
+    function fmtBonuses(totals) {
+      return Object.entries(totals)
+        .map(([key, value]) => {
+          const label = STAT_LABELS[key] || key;
+          return `${label} <span class="set-stat">+${(value * 100).toFixed(1)}%</span>`;
+        })
+        .join(", ");
+    }
+
+    for (const def of Object.values(SET_BONUS_DEFS)) {
+      const card = document.createElement("div");
+      card.className = "set-card";
+
+      const head = document.createElement("div");
+      head.className = "set-card-head";
+      const name = document.createElement("h2");
+      name.className = "set-card-name";
+      name.textContent = def.name;
+      head.appendChild(name);
+      if (def.appliesIn) {
+        const badge = document.createElement("span");
+        badge.className = "set-applies-badge";
+        badge.textContent = def.appliesIn;
+        head.appendChild(badge);
+      }
+      card.appendChild(head);
+
+      const cols = document.createElement("div");
+      cols.className = "set-card-cols";
+
+      // Pieces column
+      const piecesCol = document.createElement("div");
+      const piecesHead = document.createElement("p");
+      piecesHead.className = "set-subhead";
+      piecesHead.textContent = `Pieces (${def.totalPieces})`;
+      piecesCol.appendChild(piecesHead);
+      const piecesList = document.createElement("ul");
+      piecesList.className = "set-pieces-list";
+      for (const member of def.memberNames || []) {
+        const li = document.createElement("li");
+        li.textContent = member;
+        piecesList.appendChild(li);
+      }
+      piecesCol.appendChild(piecesList);
+      cols.appendChild(piecesCol);
+
+      // Bonuses column — cumulative totals at each tier
+      const bonusCol = document.createElement("div");
+      const bonusHead = document.createElement("p");
+      bonusHead.className = "set-subhead";
+      bonusHead.textContent = "Bonuses";
+      bonusCol.appendChild(bonusHead);
+
+      const running = {};
+      for (const tier of def.tiers) {
+        for (const [key, value] of Object.entries(tier.bonuses)) {
+          running[key] = (running[key] || 0) + value;
+        }
+        const tierEl = document.createElement("div");
+        tierEl.className = "set-tier";
+        const count = document.createElement("div");
+        count.className = "set-tier-count";
+        count.textContent = `${tier.pieces} pieces`;
+        tierEl.appendChild(count);
+        const bonuses = document.createElement("div");
+        bonuses.className = "set-tier-bonuses";
+        bonuses.innerHTML = fmtBonuses(running);
+        tierEl.appendChild(bonuses);
+        bonusCol.appendChild(tierEl);
+      }
+      cols.appendChild(bonusCol);
+
+      card.appendChild(cols);
+      container.appendChild(card);
+    }
+  })();
+</script>
+</body>
+</html>
