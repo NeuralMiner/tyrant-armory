@@ -332,7 +332,7 @@ function convertCsvToEquipmentData(csvText) {
     };
 
     if (loadoutsAgree) {
-      heroes.push({ id: r.hero_id, name: heroDisplayName, ...heroFields });
+      heroes.push({ id: r.hero_id, name: heroDisplayName, baseName: heroDisplayName, ...heroFields });
       heroLoadouts[r.hero_id] = marchMap;
       assign(r.hero_id, marchMap);
     } else {
@@ -340,8 +340,11 @@ function convertCsvToEquipmentData(csvText) {
       const instancedLabel = setLabelForExclusiveItems(instancedItemIds, marchItemIds, r.hero_id) || "Instanced";
       const marchOwnerId = `${r.hero_id}::march`;
       const instancedOwnerId = `${r.hero_id}::instanced`;
-      heroes.push({ id: marchOwnerId, name: `${heroDisplayName} — ${marchLabel}`, ...heroFields });
-      heroes.push({ id: instancedOwnerId, name: `${heroDisplayName} — ${instancedLabel}`, ...heroFields });
+      // baseName is the hero WITHOUT the march/instanced label — the one thing
+      // that stays the same for a hero across exports (ids do not), so it is
+      // what per-hero settings are keyed by. See auto-optimize.js.
+      heroes.push({ id: marchOwnerId, name: `${heroDisplayName} — ${marchLabel}`, baseName: heroDisplayName, ...heroFields });
+      heroes.push({ id: instancedOwnerId, name: `${heroDisplayName} — ${instancedLabel}`, baseName: heroDisplayName, ...heroFields });
       heroLoadouts[marchOwnerId] = marchMap;
       heroLoadouts[instancedOwnerId] = instancedMap;
       assign(marchOwnerId, marchMap);

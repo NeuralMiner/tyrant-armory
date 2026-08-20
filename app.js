@@ -50,8 +50,8 @@
    * the breakpoint scale replaces. The applied weights then diverge, because
    * the gear multiplier lifts the flat stat and not its percentage twin. */
   const TROOP_PRIORITY_PRESETS = {
-    archer: {
-      label: "Archer",
+    archers: {
+      label: "Archers",
       weights: {
         attack: 5000,
         defense: 500,
@@ -75,18 +75,18 @@
      * (Attack on top, Health at a fifth of it, Defence at a tenth) rather than
      * Infantry's, and both troops' own Attack sits with generic Attack.
      *
-     * The two Attacks sit a point apart in Mixed's order, archer then cavalry,
+     * The two Attacks sit a point apart in Mixed's order, archers then cavalry,
      * purely so a piece that only differs in which of the two it favours still
      * sorts. Nothing about the composition says either half kills more.
      *
      * No troop-affinity multiplier, same as the other hybrids: it attaches to
      * exactly one troop type and nothing in the export says which.
      *
-     * First Round Damage keeps the full Archer/Cavalry value rather than the
+     * First Round Damage keeps the full Archers/Cavalry value rather than the
      * infantry pairings' half. There it pays on the damage half of the march
      * only; here the whole march is the damage half. */
-    archerCavalry: {
-      label: "Archer / Cavalry",
+    archersCavalry: {
+      label: "Archers / Cavalry",
       weights: {
         attack: 5000,
         defense: 500,
@@ -98,7 +98,7 @@
         defensePercent: 500,
         healthPercent: 1000,
         archerAttack: 4999,
-        // Attack only, as in Infantry / Archer: archers shoot from behind the
+        // Attack only, as in Infantry / Archers: archers shoot from behind the
         // charge, so a piece buying their Defence or Health is buying nothing
         // this composition ever uses.
         cavalryAttack: 4998,
@@ -157,7 +157,7 @@
      * Attack at half of it, Defence and Health at a fifth.
      *
      * Infantry Attack sits a tier below generic Attack rather than alongside
-     * it (the Archer/Cavalry pattern) because generic Attack is the line every
+     * it (the Archers/Cavalry pattern) because generic Attack is the line every
      * attack-scaling piece can be compared on, and because Infantry Attack
      * additionally collects the 20% troop affinity this preset applies — half
      * the base weight still leaves it clearly ahead of the bulk stats once
@@ -197,10 +197,10 @@
      * troop type, and nothing in the export says which, so a hybrid can't
      * claim it for both halves without inventing the answer.
      *
-     * First Round Damage sits at half the Archer/Cavalry value: it pays on the
+     * First Round Damage sits at half the Archers/Cavalry value: it pays on the
      * damage half of the march only. */
-    infantryArcher: {
-      label: "Infantry / Archer",
+    infantryArchers: {
+      label: "Infantry / Archers",
       weights: {
         attack: 5000,
         defense: 1000,
@@ -238,7 +238,7 @@
         infantryAttack: 2500,
         infantryDefense: 999,
         infantryHealth: 999,
-        // All three, unlike the archer pairing: cavalry charge into the same
+        // All three, unlike the archers pairing: cavalry charge into the same
         // fight the infantry are holding, so their bulk earns its keep. Attack
         // still leads — they're the half that's there to kill things.
         cavalryAttack: 4999,
@@ -251,7 +251,7 @@
     /** Everything in one march, so the generic stats carry the weight and the
      * troop-type ones only break ties between otherwise equal pieces.
      *
-     * The three Attacks sit a step apart rather than level — archer, then
+     * The three Attacks sit a step apart rather than level — archers, then
      * cavalry, then infantry — so a piece that only differs in which troop it
      * favours still sorts, without the gap being wide enough to outrank a
      * piece carrying more of anything else.
@@ -286,6 +286,24 @@
       },
     },
   };
+
+  /** Preset keys that have been renamed, old -> new. Saved setups (the
+   * builder's dropdown, a player's own default weights, the auto-optimize
+   * plan) all store the key, and every load path drops one it doesn't
+   * recognise — so without this a rename would silently throw away work the
+   * player did before it. */
+  const RENAMED_TROOP_PRESET_KEYS = {
+    archer: "archers",
+    archerCavalry: "archersCavalry",
+    infantryArcher: "infantryArchers",
+  };
+
+  /** A stored preset key as this build spells it, or null if it names nothing
+   * this build has. */
+  function resolveTroopPresetKey(key) {
+    const current = RENAMED_TROOP_PRESET_KEYS[key] || key;
+    return current in TROOP_PRIORITY_PRESETS ? current : null;
+  }
 
   const state = {
     slotOrder: SLOT_ORDER,
@@ -419,15 +437,19 @@
    * meta line out with flex, which turns every bare text node into a flex item
    * of its own and puts a gap around each " · " — the wrapper keeps the phrase
    * flowing as text and leaves flex to space the dot and the status tags. */
-  function itemMetaHtml(it) {
-    // While max-level scoring is on the stats below this line are the item's at
-    // its cap, so the level has to say so — "Lvl 12" over capped numbers reads
-    // as a wildly overstated level-12 piece.
-    const levelText = state.maxLevelScoring && it.projectedLevelsToGo
+  /** An item's level as it should be READ, not as it is stored. While
+   * max-level scoring is on the stats beside it are the item's at its cap, so
+   * the level has to say so — "Lvl 12" over capped numbers reads as a wildly
+   * overstated level-12 piece. */
+  function itemLevelText(it) {
+    return state.maxLevelScoring && it.projectedLevelsToGo
       ? `Lvl ${it.level} → ${it.projectedMaxLevel}`
       : `Lvl ${it.level}`;
+  }
+
+  function itemMetaHtml(it) {
     return `<span class="rarity-dot"></span><span class="item-meta-text">${it.rarity} · `
-      + `<span class="item-level">${levelText}</span>${qualityMetaHtml(it)}</span>`;
+      + `<span class="item-level">${itemLevelText(it)}</span>${qualityMetaHtml(it)}</span>`;
   }
 
   /** A hero with different march/instanced equip states is split into two
@@ -509,7 +531,7 @@
   /** Account-wide Troop Affinity bonus, as a multiplier. It attaches to one
    * troop type rather than to the account as a whole, so it lands on the
    * troop-type stats of whichever troop a preset is FOR — archerAttack and
-   * friends in the Archer preset. Mixed gets none: no single type to attach to.
+   * friends in the Archers preset. Mixed gets none: no single type to attach to.
    *
    * Modelled as a weight rather than measured, unlike the gear multipliers.
    * Nothing in the export distinguishes a troop-type stat that is being
@@ -517,9 +539,12 @@
    * face value. */
   const TROOP_AFFINITY_MULTIPLIER = 1.2;
 
-  /** Preset key -> the prefix its troop-type stat keys share. */
+  /** Preset key -> the prefix its troop-type stat keys share. The two spell
+   * the troop differently on purpose: the key is ours, the prefix is the
+   * export's (archerAttack and friends), and renaming the preset doesn't
+   * rename the stats the game sends. */
   const PRESET_TROOP_STAT_PREFIX = {
-    archer: "archer",
+    archers: "archer",
     cavalry: "cavalry",
     infantry: "infantry",
   };
@@ -580,8 +605,9 @@
   function sanitizeTroopPresets(raw) {
     const clean = {};
     if (!raw || typeof raw !== "object") return clean;
-    for (const [troopKey, weights] of Object.entries(raw)) {
-      if (!(troopKey in TROOP_PRIORITY_PRESETS)) continue;
+    for (const [rawKey, weights] of Object.entries(raw)) {
+      const troopKey = resolveTroopPresetKey(rawKey);
+      if (!troopKey) continue;
       const cleanWeights = sanitizeStatWeights(weights);
       if (Object.keys(cleanWeights).length) clean[troopKey] = cleanWeights;
     }
@@ -1075,6 +1101,7 @@
 
   function invalidatePendingLiveEquip() {
     pendingLiveEquipPreview = null;
+    if (!hasBuilderUi) return;
     equipLiveBtnEl.textContent = "Equip this loadout";
   }
 
@@ -1084,6 +1111,7 @@
    * chokepoint — so every loadout/hero mutation that ends in a re-render
    * picks this up automatically. */
   function updateLiveEquipButtonVisibility() {
+    if (!hasBuilderUi) return;
     const hasHero = state.activeOwner !== NO_HERO_OWNER;
     const hasAnyItem = Object.values(activeLoadout()).some((v) => v !== null);
     equipLiveBtnEl.hidden = !(state.isLive && hasHero && hasAnyItem);
@@ -1276,6 +1304,9 @@
   const setNotesWrapEl = document.getElementById("set-notes-wrap");
   const setNotesEl = document.getElementById("set-notes");
   const heroSelectEl = document.getElementById("hero-select");
+  const topbarEl = document.querySelector(".topbar");
+  const topbarControlsEl = document.getElementById("topbar-controls");
+  const navToggleEl = document.getElementById("nav-toggle");
   const optimizeMenuBtnEl = document.getElementById("optimize-menu-btn");
   const optimizeMenuListEl = document.getElementById("optimize-menu-list");
   const optimizeWeightListEl = document.getElementById("optimize-weight-list");
@@ -1339,6 +1370,17 @@
   const pickerCompareBtnEl = document.getElementById("picker-compare-btn");
   const pickerCompareClearBtnEl = document.getElementById("picker-compare-clear-btn");
 
+  /** Whether this page hosts the loadout builder at all.
+   *
+   * auto-optimize.html loads this file for its data, its persistence and its
+   * scoring engine, but carries none of the builder's markup — so every one of
+   * the element handles above is null there. Rather than have that page tiptoe
+   * around which entry points repaint something, the render functions check
+   * this and no-op, which lets applyEquipmentData() and friends be called from
+   * either page unchanged. Everything below it in the call graph — scoring,
+   * optimizing, saving — is DOM-free already. */
+  const hasBuilderUi = Boolean(slotsEl);
+
   function openMenu(btnEl, listEl) {
     listEl.hidden = false;
     btnEl.setAttribute("aria-expanded", "true");
@@ -1347,6 +1389,18 @@
   function closeMenu(btnEl, listEl) {
     listEl.hidden = true;
     btnEl.setAttribute("aria-expanded", "false");
+  }
+
+  /** Folds the topbar's control row behind the hamburger, or back out.
+   *
+   * Only the narrow layout hides the row in the first place, so on a wide
+   * screen this is inert bookkeeping — the class it sets means nothing until
+   * the media query picks it up, which is why nothing here has to know the
+   * breakpoint or watch for it changing. */
+  function setNavOpen(open) {
+    topbarEl.classList.toggle("nav-open", open);
+    navToggleEl.setAttribute("aria-expanded", open ? "true" : "false");
+    navToggleEl.setAttribute("aria-label", open ? "Hide menu" : "Show menu");
   }
 
   function openDataMenu() {
@@ -1382,6 +1436,7 @@
   }
 
   function showToast(message) {
+    if (!toastEl) return;
     toastEl.textContent = message;
     toastEl.hidden = false;
     clearTimeout(showToast._t);
@@ -1462,6 +1517,34 @@
     return item.stats;
   }
 
+  /** What a hero is standing in, slot by slot, as plain display strings.
+   *
+   * For auto-optimize.html's results panel, which shows the gear a run just
+   * handed each hero on the same slot cards the builder uses. It reads
+   * pre-formatted rather than raw because the two things a reader would
+   * otherwise have to re-derive — the stat lines and the level — both follow
+   * the max-level toggle, and how that basis is spelled out belongs here with
+   * the toggle rather than in every caller. */
+  function loadoutSnapshot(ownerId) {
+    const loadout = state.loadoutsByOwner[ownerId] || {};
+    return state.slotOrder.map((slot) => {
+      const it = loadout[slot] ? itemById(slot, loadout[slot]) : null;
+      if (!it) return { slot, item: null };
+      return {
+        slot,
+        item: {
+          name: it.name,
+          rarity: it.rarity,
+          // The builder's own meta line, markup and all: the snapshot draws
+          // the same card, so the rarity dot, level and quality have to be
+          // the same phrase rather than a second spelling of it.
+          metaHtml: itemMetaHtml(it),
+          statLines: displayStatLines(it),
+        },
+      };
+    });
+  }
+
   /** An item without its cached projection, for anything that leaves the app
    * (localStorage, backup export). */
   function stripProjections(item) {
@@ -1471,9 +1554,10 @@
     return rest;
   }
 
-  /** Whether a collapsible panel is open. Shared by both plan panels — each
-   * remembers its own state under its own key, and an unvisited key falls back
-   * to that panel's default rather than to a blanket "closed". */
+  /** Whether a collapsible panel is open. Shared by every heading-as-toggle
+   * panel, on this page and on auto-optimize — each remembers its own state
+   * under its own key, and an unvisited key falls back to that panel's default
+   * rather than to a blanket "closed". */
   function savePanelOpen(storageKey, open) {
     try {
       localStorage.setItem(storageKey, open ? "1" : "0");
@@ -1519,6 +1603,24 @@
     }
   }
 
+  /** The owner an incoming link names — index.html?hero=<owner id>, which is
+   * how the auto-optimize results panel opens a hero it just built.
+   *
+   * Only honoured when the id names a hero this data actually has: ids are
+   * assigned per import (see csv-import.js), so a link followed after a
+   * re-import has to fall back to the saved hero rather than land on nothing.
+   * Deliberately not saved either — it's this tab's view, and writing it down
+   * would move whatever hero the builder's other tab comes back to. */
+  function requestedOwnerFromUrl() {
+    try {
+      const id = new URLSearchParams(window.location.search).get("hero");
+      if (!id) return null;
+      return state.heroes.some((h) => h.id === id) ? id : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
   /** The saved owner key, unvalidated: whether that hero still exists is
    * settled by retainActiveOwner, which also handles the march/instanced id
    * split. An absent entry means the scratch space, same as a fresh visit. */
@@ -1536,6 +1638,11 @@
    * and a scenario restored without the override bookkeeping behind it
    * (presetAppliedScenario, see there) is one no later preset can undo. */
   function saveOptimizeSetup() {
+    // Nothing to record on a page with no optimize menu — auto-optimize.html
+    // sets weights per hero from its own saved plan, and writing that here
+    // would overwrite the builder's setup with whatever the last hero in a
+    // batch run happened to be scored on.
+    if (!hasBuilderUi) return;
     try {
       localStorage.setItem(OPTIMIZE_SETUP_STORAGE_KEY, JSON.stringify({
         preset: optimizeTroopSelectEl ? optimizeTroopSelectEl.value : "custom",
@@ -1550,6 +1657,31 @@
     }
   }
 
+  /** The max-level toggle alone, for a page that has no optimize menu:
+   * auto-optimize.html offers the same setting, and it has to outlive the tab
+   * the same way the builder's checkbox does. saveOptimizeSetup() can't do it
+   * there — it writes the whole record off controls that page doesn't have —
+   * so this merges the one field into whatever is already saved and leaves the
+   * preset, weights and scenario exactly as the builder left them. With
+   * nothing saved yet there is nothing to preserve, and the fields this omits
+   * validate back to the same defaults a first visit to the builder starts on
+   * (Custom, no weights, General). */
+  function saveMaxLevelScoring() {
+    try {
+      let raw = null;
+      try {
+        raw = JSON.parse(localStorage.getItem(OPTIMIZE_SETUP_STORAGE_KEY) || "null");
+      } catch (err) {
+        console.warn("Couldn't parse the saved auto-optimize setup:", err);
+      }
+      const record = raw && typeof raw === "object" ? raw : {};
+      record.maxLevel = state.maxLevelScoring;
+      localStorage.setItem(OPTIMIZE_SETUP_STORAGE_KEY, JSON.stringify(record));
+    } catch (err) {
+      console.warn("Couldn't save the max-level setting:", err);
+    }
+  }
+
   /** The saved setup with every field validated, or null when there is none.
    * An unknown preset key becomes "custom", which is also what the weights are
    * then read as: the player's own, applied verbatim rather than re-derived. */
@@ -1561,9 +1693,8 @@
       console.warn("Couldn't parse the saved auto-optimize setup:", err);
     }
     if (!raw || typeof raw !== "object") return null;
-    const preset = typeof raw.preset === "string" && raw.preset in TROOP_PRIORITY_PRESETS
-      ? raw.preset
-      : "custom";
+    const preset = (typeof raw.preset === "string" && resolveTroopPresetKey(raw.preset))
+      || "custom";
     return {
       preset,
       weights: sanitizeStatWeights(raw.weights),
@@ -2630,6 +2761,7 @@
   }
 
   function renderHeroSelect() {
+    if (!hasBuilderUi) return;
     heroSelectEl.innerHTML = "";
     const skipOpt = document.createElement("option");
     skipOpt.value = "";
@@ -2655,6 +2787,7 @@
   }
 
   function updateOptimizeWeightBadge() {
+    if (!hasBuilderUi) return;
     const count = optimizeWeightCount();
     optimizeWeightBadgeEl.hidden = count === 0;
     optimizeWeightBadgeEl.textContent = count;
@@ -2670,6 +2803,7 @@
   /** Populate the scenario <select> from the known set contexts and reflect
    * the current state. Options are static, so this only needs to run once. */
   function renderOptimizeContextSelect() {
+    if (!hasBuilderUi) return;
     optimizeContextSelectEl.innerHTML = "";
     for (const { value, label } of optimizeContextOptions()) {
       const opt = document.createElement("option");
@@ -2685,6 +2819,7 @@
   }
 
   function renderOptimizeWeightList() {
+    if (!hasBuilderUi) return;
     optimizeWeightListEl.innerHTML = "";
     for (const key of state.availableStats) {
       const row = document.createElement("label");
@@ -2827,7 +2962,8 @@
     state.maxLevelScoring = Boolean(on);
     if (optimizeMaxLevelEl) optimizeMaxLevelEl.checked = state.maxLevelScoring;
     refreshStatScale();
-    saveOptimizeSetup();
+    if (hasBuilderUi) saveOptimizeSetup();
+    else saveMaxLevelScoring();
     renderSlots();
     refreshTotals();
   }
@@ -2916,6 +3052,7 @@
    * default: mark those options "(custom)" and show the Reset button only when
    * the troop selected in the save dropdown actually has one. */
   function updateTroopPresetControls() {
+    if (!hasBuilderUi) return;
     for (const opt of optimizeTroopSelectEl.options) {
       if (!(opt.value in TROOP_PRIORITY_PRESETS)) continue;
       const label = TROOP_PRIORITY_PRESETS[opt.value].label;
@@ -2926,6 +3063,7 @@
   }
 
   function renderSlots() {
+    if (!hasBuilderUi) return;
     slotsEl.innerHTML = "";
     const loadout = activeLoadout();
     const lockedSlots = lockedSlotsForOwner(state.activeOwner);
@@ -3524,9 +3662,9 @@
    * reads it. */
   /** Demote a stat figure the ranking can't see. Both panels report every
    * command stat that MOVED, but only stats carrying a weight reach the score
-   * behind the value bar — so a row can advertise "Defense +0.25%" and be
-   * ranked as though it gained nothing, which reads as a broken bar rather than
-   * as a weighting the reader chose. */
+   * that orders the rows — so a row can advertise "Defense +0.25%" and be
+   * ranked as though it gained nothing, which reads as a broken ranking rather
+   * than as a weighting the reader chose. */
   function markIfUnweighted(part, key, weights) {
     if (weights && weights[key]) return;
     part.classList.add("is-unweighted");
@@ -3734,7 +3872,7 @@
    * comparisons — buying the Aegis changes what the Greathelm is worth.
    *
    * One purchase per slot, and the piece it replaces is gone: it was scrapped
-   * to level the replacement, which is where the XP in the row came from.
+   * into the replacement, which is the level every row is scored at.
    *
    * Stops when nothing left in the shop improves the loadout, which is a real
    * answer and not a failure — a slot holding a well-levelled piece with good
@@ -3854,28 +3992,20 @@
 
     const plan = buildPvpBuyPlan(activeLoadout() || {}, weights);
 
-    // Said once here rather than on every row: both are properties of the shop,
-    // not of any particular piece.
-    const caveat = ` Neither the random affixes nor the quality roll is scored — `
-      + `both are unknown until the piece is bought — so every row understates a `
-      + `little. Each row lists what its piece could roll.`
-      // The panel's usual premise is what the scrap XP buys you NOW, and
-      // max-level scoring suspends exactly that: the arrival level stops
-      // separating the candidates once every one of them is measured at its
-      // cap. That changes the question the order answers, so it's said up
-      // front rather than left to be inferred from the rows.
-      + (state.maxLevelScoring
-        ? ` Max level gear is on, so every piece — shop and equipped alike — is `
-          + `scored at its cap. This is the endgame buy order, not the one that `
-          + `does the most for you today.`
-        : "");
+    // Every row's figures depend on what level the piece is measured at, and
+    // that level is an assumption the panel makes rather than anything the
+    // shop tells you — so it's stated once here instead of on each row.
+    const levelBasis = state.maxLevelScoring
+      ? ` Max level gear is on, so every piece is scored at its level cap.`
+      : ` Each piece is scored at the level it reaches when you scrap the piece `
+        + `it replaces into it.`;
 
     // The empty-loadout case can't reach here — the panel doesn't open without
     // equipped gear (see `ready` above), so an empty plan means the shop lost.
     if (!plan.rows.length) {
       pvpPlanSummaryEl.textContent =
-        `Nothing in the PvP shop improves this loadout. Your current pieces already beat `
-        + `every piece it sells, scored on your weights.${caveat}`;
+        `Nothing in the PvP shop improves this loadout — your current pieces already `
+        + `beat every piece it sells.`;
       return;
     }
 
@@ -3884,17 +4014,12 @@
       : "";
 
     pvpPlanSummaryEl.textContent =
-      `Buy in this order — each row is scored against the loadout the rows above it leave `
-      + `behind, so set bonuses count where they'd actually land. `
-      + `All ${plan.rows.length} costs ${plan.totalCost.toLocaleString()} ${PVP_SHOP_CURRENCY}.`
-      + `${heldNote}${caveat}`;
+      `Suggested buy order.${levelBasis}${heldNote}`;
 
-    const best = plan.rows[0].gain;
     plan.rows.forEach((row, index) => {
       const li = document.createElement("li");
-      const { shopItem, repl, replaced } = row;
+      const { shopItem, replaced } = row;
       li.className = `upgrade-plan-row rarity-${shopItem.rarity}`;
-      const relative = best > 0 ? Math.round((row.gain / best) * 100) : 0;
 
       const head = document.createElement("div");
       head.className = "upgrade-plan-head";
@@ -3917,32 +4042,6 @@
         : `${shopItem.rarity} ${shopItem.slot.toLowerCase()} · fills an empty slot`;
       li.appendChild(meta);
 
-      // The level line is the point of the whole panel, so it gets its own row
-      // rather than being folded into the one above: a Legendary landing BELOW
-      // the level of the Epic it replaced looks like a bug until you see the XP
-      // that bought it and the cap it's climbing towards.
-      const levels = document.createElement("div");
-      levels.className = "upgrade-plan-meta";
-      const arrival = `Arrives Lv ${PVP_SHOP_ARRIVAL_LEVEL}`;
-      const climb = repl.levelsFromXp > 0
-        ? ` → Lv ${repl.level} on ${repl.xpInherited.toLocaleString()} XP from the scrap`
-        : replaced
-          ? ` · the ${repl.xpInherited.toLocaleString()} XP from the scrap doesn't buy a level here`
-          : "";
-      // Max-level scoring takes the arrival level out of the comparison
-      // entirely — both this piece and the one it replaces are scored at their
-      // caps — so the line has to stop reading as the basis for the gains
-      // below it. Said on every row rather than once in the summary, because
-      // it's the one line those gains would otherwise be read against.
-      const basis = state.maxLevelScoring
-        ? ` · scored at its Lv ${repl.projectedMaxLevel} cap, not on arrival`
-        : "";
-      levels.textContent = `${arrival}${climb}${basis}`;
-      if (repl.xpWasted > 0) {
-        levels.textContent += ` · ${repl.xpWasted.toLocaleString()} XP stranded at the cap`;
-      }
-      li.appendChild(levels);
-
       // Both directions, and in the stat order the Army panel uses rather than
       // best-first — a swap is a trade, and sorting the wins above the losses
       // would be editorialising about which half matters.
@@ -3953,10 +4052,8 @@
       const flatText = Object.entries(row.statGains)
         .map(([key, delta]) => `${fmtValue(key, delta)} ${STAT_LABELS[key]}`)
         .join(" · ");
-      const canRoll = PVP_AFFIX_POOLS[shopItem.affixTheme] || [];
-      // The roll pool is on the row itself now, so the tooltip carries only
-      // what the row can't: the full raw stat change, and the fact that it is
-      // the guaranteed base rather than anything rolled.
+      // The tooltip carries what the row can't: the full raw stat change, and
+      // the fact that it is the guaranteed base rather than anything rolled.
       li.title = `${shopItem.name}, against ${replaced ? replaced.name : "an empty slot"}: `
         + `${flatText || "no net stat change"}. Guaranteed base stats — nothing here is rolled.`;
 
@@ -4020,26 +4117,12 @@
         li.appendChild(statsEl);
       }
 
-      // What the piece could roll on top of everything scored above. Listed per
-      // row rather than once for the panel because the two sets draw from
-      // disjoint pools (see PVP_AFFIX_POOLS): a Conqueror piece cannot roll a
-      // health affix and a Warden one can, which is exactly the sort of thing a
-      // blanket "affixes aren't scored" footnote lets a reader assume wrong.
-      if (canRoll.length) {
-        const rolls = document.createElement("div");
-        rolls.className = "upgrade-plan-meta pvp-plan-rolls";
-        rolls.textContent = `${shopItem.affixTheme} (${shopItem.affixSlots}): ${canRoll.join(", ")}`;
-        li.appendChild(rolls);
-      }
-
       if (row.alreadyOwned) {
         const owned = document.createElement("div");
         owned.className = "upgrade-plan-meta pvp-plan-owned";
         owned.textContent = "You already own one of these — this row is a second copy.";
         li.appendChild(owned);
       }
-
-      li.appendChild(planValueBar(relative));
 
       pvpPlanEl.appendChild(li);
     });
@@ -4101,6 +4184,7 @@
   }
 
   function renderLedger(totals, setNotes) {
+    if (!hasBuilderUi) return;
     ledgerEl.innerHTML = "";
     if (!totals.length) {
       const empty = document.createElement("p");
@@ -4209,6 +4293,7 @@
   }
 
   function renderFilterMenu() {
+    if (!hasBuilderUi) return;
     filterCheckboxListEl.innerHTML = "";
     for (const key of state.availableStats) {
       const label = document.createElement("label");
@@ -4253,6 +4338,7 @@
   }
 
   function updateFilterCountBadge() {
+    if (!hasBuilderUi) return;
     const count = state.activeStatFilters.size + state.activeRarityFilters.size;
     filterCountBadgeEl.hidden = count === 0;
     filterCountBadgeEl.textContent = count;
@@ -4294,7 +4380,10 @@
     const lockedCount = lockedSlots.size;
     const lockedNote = lockedCount ? ` (${lockedCount} slot${lockedCount === 1 ? "" : "s"} left locked)` : "";
     const ctxOption = optimizeContextOptions().find((o) => o.value === state.optimizeContext);
-    const ctxNote = ctxOption ? ` · ${ctxOption.label}` : "";
+    // "None" is the absence of a scenario rather than one of them, so the
+    // default has nothing to announce — naming it would read as a setting the
+    // player chose over the alternatives.
+    const ctxNote = ctxOption && state.optimizeContext !== "general" ? ` · ${ctxOption.label}` : "";
     const maxLevelNote = state.maxLevelScoring ? " · gear at max level" : "";
     // Worth saying which one you got: an exhausted search is a proof, a
     // budget-capped one is just the best found so far.
@@ -4307,6 +4396,183 @@
     );
   }
 
+  /** A preset's weights, narrowed to the stats this inventory actually has —
+   * the same filter applyTroopPreset puts a preset through, without touching
+   * the builder's own weights or repainting anything. Returns {} for "custom",
+   * an unknown key, or a preset none of whose stats are present. */
+  function presetWeightsForInventory(presetKey) {
+    const presetWeights = troopPresetWeights(presetKey);
+    if (!presetWeights) return {};
+    const available = new Set(state.availableStats);
+    const weights = {};
+    for (const [key, value] of Object.entries(presetWeights)) {
+      if (available.has(key)) weights[key] = value;
+    }
+    return weights;
+  }
+
+  /** The preset key that means "leave this hero out of the batch". Not a
+   * TROOP_PRIORITY_PRESETS entry — the batch page offers it alongside them. */
+  const BATCH_SKIP_PRESET = "skip";
+
+  /** Auto-optimize a whole roster in one pass, best hero first.
+   *
+   * `plan` is an ordered list of {ownerId, preset, scenario}. Order is the
+   * whole point: gear is exclusive across heroes, so whoever comes first gets
+   * first pick and everyone below builds from what's left.
+   *
+   * Two phases, and the first is what makes the order mean anything. Every
+   * hero in the plan is emptied before any of them is filled, so a piece is
+   * assigned on priority rather than on who happened to be holding it when the
+   * run started. Without it the run would be order-independent in the worst
+   * way: an item already equipped on the last hero in the list is locked
+   * against the first one, and the first one would quietly build around it.
+   *
+   * Emptying is why a hero set to "skip" ends up with nothing on: it is in the
+   * plan, so it is cleared, and then nothing fills it back in. That is the
+   * point of putting a hero at the bottom with no preset — their gear goes to
+   * the heroes above them. Locked slots are the exception at both ends: they
+   * are never cleared and never re-picked, exactly as in the single-hero run.
+   *
+   * Heroes NOT in the plan — the instanced pseudo-owners the batch page leaves
+   * out, and anyone the caller dropped — keep their gear, and it stays locked
+   * against everyone in the plan, same as any other hero's equipped gear.
+   *
+   * Async, and yields to the event loop between heroes: each hero is a full
+   * branch-and-bound search (see searchBestLoadout) and a dozen of them back to
+   * back would otherwise freeze the tab with no way to say how far along it is.
+   * `onProgress(done, total, heroLabel)` is called before each search starts,
+   * and counts only the heroes actually being built — the ones with a preset
+   * whose stats this inventory carries. Plan entries that are skipped or that
+   * weight nothing are still processed, and still return a result row, but they
+   * run no search and so are neither announced nor counted.
+   *
+   * Returns one result row per plan entry, in plan order, for the caller to
+   * report. */
+  async function optimizeHeroesInOrder(plan, onProgress) {
+    const savedOwner = state.activeOwner;
+    const savedWeights = state.optimizeWeights;
+    const savedContext = state.optimizeContext;
+    const savedScale = state.breakpointScale;
+    const results = [];
+
+    try {
+      for (const entry of plan) {
+        ensureOwnerLoadout(entry.ownerId);
+        const loadout = state.loadoutsByOwner[entry.ownerId];
+        const lockedSlots = lockedSlotsForOwner(entry.ownerId);
+        for (const slot of state.slotOrder) {
+          if (!lockedSlots.has(slot)) loadout[slot] = null;
+        }
+      }
+
+      // Worked out before the run so the progress line can count the heroes
+      // actually being built. A skipped hero is still processed below — it just
+      // has no search to announce, and counting it would have the run finish on
+      // "Optimizing <hero nobody asked for> — 13 of 13".
+      const plannedWeights = plan.map((entry) => (
+        !entry.preset || entry.preset === BATCH_SKIP_PRESET
+          ? {}
+          : presetWeightsForInventory(entry.preset)
+      ));
+      const buildTotal = plannedWeights.filter((w) => Object.keys(w).length).length;
+      let built = 0;
+
+      for (let i = 0; i < plan.length; i++) {
+        const entry = plan[i];
+        if (!entry.preset || entry.preset === BATCH_SKIP_PRESET) {
+          results.push({ ...entry, status: "skipped", equipped: 0 });
+          continue;
+        }
+        const weights = plannedWeights[i];
+        if (!Object.keys(weights).length) {
+          // A preset whose stats this inventory doesn't carry weights nothing,
+          // and optimizing on an empty weight set would pick at random. Say so
+          // rather than hand back a meaningless loadout.
+          results.push({ ...entry, status: "no-weights", equipped: 0 });
+          continue;
+        }
+
+        if (onProgress) onProgress(built, buildTotal, ownerLabel(entry.ownerId));
+        built++;
+        // Let the progress line actually paint before this hero's search blocks
+        // the thread for however long it takes.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        // The breakpoint scale is read off whichever hero is active (see
+        // computeBreakpointScale), and so is the ledger the caller repaints
+        // afterwards — so the active owner is moved for the duration and put
+        // back in the finally below.
+        state.activeOwner = entry.ownerId;
+        state.optimizeWeights = weights;
+        state.optimizeContext = entry.scenario || "general";
+
+        // Recomputed per hero, not hoisted: every hero filled so far has just
+        // claimed their gear, and that is exactly what must be off the table
+        // for the ones below them.
+        const lockedMap = computeLockedMap();
+        const excludeIds = new Set(
+          [...lockedMap.keys()].filter(
+            (itemId) => heroGroupKey(lockedMap.get(itemId)) !== heroGroupKey(entry.ownerId)
+          )
+        );
+        const search = optimizeLoadout(
+          state.itemsBySlot,
+          weights,
+          excludeIds,
+          state.loadoutsByOwner[entry.ownerId],
+          lockedSlotsForOwner(entry.ownerId)
+        );
+        state.loadoutsByOwner[entry.ownerId] = search.loadout;
+        results.push({
+          ...entry,
+          status: "optimized",
+          equipped: Object.values(search.loadout).filter(Boolean).length,
+          exhaustive: search.exhaustive,
+        });
+      }
+    } finally {
+      state.activeOwner = savedOwner;
+      state.optimizeWeights = savedWeights;
+      state.optimizeContext = savedContext;
+      state.breakpointScale = savedScale;
+      // Whatever happened, what's in state.loadoutsByOwner is now the truth —
+      // including a half-finished run, whose emptied heroes must not come back
+      // fully geared on the next reload.
+      saveLoadouts();
+      invalidatePendingLiveEquip();
+      renderSlots();
+      refreshTotals();
+    }
+
+    return results;
+  }
+
+  /** What auto-optimize.html needs from this file, and nothing more. That page
+   * owns its own UI and its own saved configuration; everything to do with the
+   * inventory, the heroes, the loadouts and the scoring lives here, and is
+   * reached only through this. */
+  window.TyrantArmory = {
+    state,
+    NO_HERO_OWNER,
+    BATCH_SKIP_PRESET,
+    TROOP_PRIORITY_PRESETS,
+    PRESET_SCENARIO,
+    resolveTroopPresetKey,
+    heroGroupKey,
+    ownerLabel,
+    presetWeightsForInventory,
+    optimizeHeroesInOrder,
+    loadoutSnapshot,
+    setMaxLevelScoring,
+    applyCsvText,
+    readFileAsText,
+    showToast,
+    savePanelOpen,
+    loadPanelOpen,
+    applyPanelOpenState,
+  };
+
   function switchOwner(newOwner) {
     state.activeOwner = newOwner;
     saveActiveOwner();
@@ -4317,7 +4583,12 @@
     refreshTotals();
   }
 
-  function init() {
+  /** Load every persisted thing this file owns — the inventory, the loadouts,
+   * the locked slots, the saved presets and the auto-optimize setup — and put
+   * the derived scales on top of it. No DOM beyond the guarded handful that
+   * mirror state onto a control, so both pages that load this file start from
+   * exactly the same state; the builder page then goes on to build its UI. */
+  function initState() {
     const savedEquipment = loadSavedEquipmentData();
     const initialData = savedEquipment || {
       heroes: SAMPLE_HEROES,
@@ -4341,7 +4612,7 @@
     state.lockedSlotsByOwner = loadSavedLockedSlots();
     state.customTroopPresets = loadSavedTroopPresets();
     state.gearMultipliers = loadSavedGearMultipliers();
-    state.activeOwner = loadSavedActiveOwner();
+    state.activeOwner = requestedOwnerFromUrl() || loadSavedActiveOwner();
     // The saved hero may be gone, or back under a different id, since the last
     // visit — the same problem a data swap has, so it gets the same treatment.
     retainActiveOwner();
@@ -4355,7 +4626,12 @@
     // restored max-level toggle changes the numbers it was taken from.
     refreshStatScale();
     if (optimizeMaxLevelEl) optimizeMaxLevelEl.checked = state.maxLevelScoring;
+  }
 
+  /** Build the loadout builder: paint every panel from the state initState()
+   * just loaded, then wire the controls up. Only ever called on index.html —
+   * every element it touches is null anywhere else. */
+  function initBuilderUi() {
     renderHeroSelect();
     renderOptimizeContextSelect();
     // A preset fills in only the stats the inventory had when it was picked,
@@ -4382,8 +4658,9 @@
       state.optimizeWeights = {};
       // Same rule as editing a weight by hand or hitting Only: the weights are
       // the player's now, so the dropdown must stop claiming a preset. Left
-      // naming one, it reads as "Archer is applied" over an empty weight list,
-      // and Optimize answers with "give at least one stat a weight first".
+      // naming one, it reads as the Archers preset being applied over an empty
+      // weight list, and Optimize answers with "give at least one stat a
+      // weight first".
       optimizeTroopSelectEl.value = "custom";
       saveOptimizeSetup();
       renderOptimizeWeightList();
@@ -4455,6 +4732,14 @@
       if (e.target === overlayEl) closePicker();
     });
     document.addEventListener("keydown", (e) => {
+      // Escape peels one layer at a time, so it has to be asked before the
+      // closes below run: with everything inside the mobile nav already shut,
+      // the next press folds the nav itself away.
+      if (e.key === "Escape" && overlayEl.hidden && compareOverlayEl.hidden
+          && pasteCsvOverlayEl.hidden && dataMenuListEl.hidden
+          && filterMenuListEl.hidden && optimizeMenuListEl.hidden) {
+        setNavOpen(false);
+      }
       if (e.key === "Escape" && !overlayEl.hidden) closePicker();
       if (e.key === "Escape" && !dataMenuListEl.hidden) closeDataMenu();
       if (e.key === "Escape" && !filterMenuListEl.hidden) closeFilterMenu();
@@ -4462,6 +4747,19 @@
       if (e.key === "Escape" && !pickerFilterMenuListEl.hidden) closePickerFilterMenu();
     });
 
+    navToggleEl.addEventListener("click", () => {
+      setNavOpen(!topbarEl.classList.contains("nav-open"));
+    });
+    // Actions that finish something — a Data entry, one of the bare buttons or
+    // the links promoted out of the Data menu, the optimize run — hand the page
+    // back afterwards. The buttons that only
+    // open a submenu are left alone: what they open lives inside the panel,
+    // and so does anything that just adjusts it, like clearing a filter.
+    topbarControlsEl.addEventListener("click", (e) => {
+      if (e.target.closest("#data-menu-list .data-menu-item, .nav-promoted-link, #clear-btn, #compare-btn, #equip-live-btn, #optimize-run-btn")) {
+        setNavOpen(false);
+      }
+    });
     dataMenuBtnEl.addEventListener("click", () => {
       dataMenuListEl.hidden ? openDataMenu() : closeDataMenu();
     });
@@ -4557,5 +4855,8 @@
     }
   }
 
-  init();
+  initState();
+  // auto-optimize.html loads this file for its engine and stops here; the
+  // builder lives on index.html alone.
+  if (hasBuilderUi) initBuilderUi();
 })();

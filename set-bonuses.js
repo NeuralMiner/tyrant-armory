@@ -92,11 +92,12 @@ function setBonusAppliesInContext(def, activeContext) {
   return setContext === activeContext;
 }
 
-/** Scenario options for the optimize panel: "general" (no conditional
- * bonuses) plus one entry per distinct conditional context among known sets,
- * labeled with that context's `appliesIn` text. */
+/** Set-bonus scenario options for the optimize panel: "general", offered as
+ * "None" because that is what it does — count no conditional bonus at all —
+ * plus one entry per distinct conditional context among known sets, labeled
+ * with that context's `appliesIn` text. */
 function optimizeContextOptions() {
-  const options = [{ value: "general", label: "General (no conditional bonuses)" }];
+  const options = [{ value: "general", label: "None" }];
   const seen = new Set();
   for (const def of Object.values(SET_BONUS_DEFS)) {
     const ctx = def.context || "always";

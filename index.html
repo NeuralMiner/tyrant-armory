@@ -20,72 +20,77 @@
     <span class="topbar-eyebrow">Hero Armory</span>
     <h1>Loadout Builder</h1>
   </div>
-  <div class="topbar-controls">
+  <button id="nav-toggle" class="nav-toggle" type="button"
+          aria-controls="topbar-controls" aria-expanded="false" aria-label="Show menu">
+    <span class="nav-toggle-bars" aria-hidden="true"></span>
+  </button>
+  <label class="control topbar-hero">
+    <span>Hero</span>
+    <select id="hero-select">
+      <option value="">— no hero, just gear —</option>
+    </select>
+  </label>
+  <div class="topbar-controls" id="topbar-controls">
     <label class="control">
       <span>Search items</span>
       <input id="item-search-input" type="search" placeholder="e.g. Miner's Pick" class="item-search-input" autocomplete="off">
-    </label>
-    <label class="control">
-      <span>Hero</span>
-      <select id="hero-select">
-        <option value="">— no hero, just gear —</option>
-      </select>
     </label>
     <div class="data-menu">
       <button id="optimize-menu-btn" class="btn-ghost" type="button" aria-haspopup="true" aria-expanded="false">
         Auto-optimize… <span id="optimize-weight-badge" class="filter-count-badge" hidden></span> ▾
       </button>
-      <div id="optimize-menu-list" class="data-menu-list filter-menu-list" hidden>
+      <div id="optimize-menu-list" class="data-menu-list filter-menu-list optimize-menu-list" hidden>
         <div class="filter-section-label">Weight each stat, then optimize</div>
-        <p class="optimize-weight-hint">Weights are relative, not percentages — 2:1 and 200:100 pick the same loadout. Each stat is scaled to its own range first, so a weight means the same "how much I care" whether the stat is a flat number or a small percentage.</p>
+        <p class="optimize-weight-hint">Relative, not percentages: 2:1 and 200:100 pick the same loadout. Each stat is scaled to its own range first, so flat numbers and small percentages compare fairly.</p>
         <label class="optimize-context-row">
           <span class="optimize-context-label">Preset</span>
           <select id="optimize-troop-select" class="optimize-context-select">
             <option value="custom">Custom (set weights below)</option>
             <option value="mixed">Mixed</option>
             <option value="infantry">Infantry</option>
-            <option value="archer">Archer</option>
+            <option value="archers">Archers</option>
             <option value="cavalry">Cavalry</option>
             <option value="infantryCavalry">Infantry / Cavalry</option>
-            <option value="infantryArcher">Infantry / Archer</option>
-            <option value="archerCavalry">Archer / Cavalry</option>
+            <option value="infantryArchers">Infantry / Archers</option>
+            <option value="archersCavalry">Archers / Cavalry</option>
             <option value="gathering">Gathering</option>
           </select>
         </label>
-        <p class="optimize-weight-hint">Pick a preset to auto-fill the weights below — the troop presets build for PvP, single-type or a two-troop march, Gathering builds for resource runs — then tweak as needed. Editing any weight switches this back to Custom.</p>
+        <p class="optimize-weight-hint">Auto-fills the weights below: the troop presets build for PvP, Gathering for resource runs. Editing any weight switches back to Custom.</p>
         <label class="optimize-context-row">
-          <span class="optimize-context-label">Scenario</span>
+          <span class="optimize-context-label">Set bonuses</span>
           <select id="optimize-context-select" class="optimize-context-select"></select>
         </label>
-        <p class="optimize-weight-hint">Set bonuses that only apply in a scenario (e.g. Beastlord's Hunt in Monster Dens) count toward the pick only when that scenario is selected.</p>
+        <p class="optimize-weight-hint">Conditional set bonuses (e.g. Beastlord's Hunt in Monster Dens) count toward the pick only where they apply, so pick where this hero fights.</p>
         <label class="filter-checkbox-item optimize-max-level-row">
           <input type="checkbox" id="optimize-max-level">
           <span>Optimize for max level gear</span>
         </label>
-        <p class="optimize-weight-hint">Scores every piece at its level cap instead of the level it's on: Attack, Defence and Health projected to max, affixes left exactly as they are — those are rolled from the item's quality when it drops and don't grow with enhancement. Answers "what should I build toward" rather than "what's best right now", so an under-levelled Legendary stops losing to a maxed Rare it will overtake. Totals and item stats read on the same basis while this is on; the Upgrade plan keeps showing today's numbers, since costing those levels is its whole job.</p>
+        <p class="optimize-weight-hint">Scores every piece at its level cap — Attack, Defence and Health projected to max, affixes as-is, since those roll on drop. Answers "what should I build toward", so an under-levelled Legendary stops losing to a maxed Rare it will overtake. Totals and item stats follow; the Upgrade plan still shows today's numbers.</p>
         <div class="filter-menu-list-inner optimize-weight-list" id="optimize-weight-list"></div>
         <div class="optimize-context-row optimize-troop-save-row">
           <span class="optimize-context-label">Save as default for</span>
           <select id="optimize-troop-save-select" class="optimize-context-select" aria-label="Preset to save the current weights as the default for">
             <option value="mixed">Mixed</option>
             <option value="infantry">Infantry</option>
-            <option value="archer">Archer</option>
+            <option value="archers">Archers</option>
             <option value="cavalry">Cavalry</option>
             <option value="infantryCavalry">Infantry / Cavalry</option>
-            <option value="infantryArcher">Infantry / Archer</option>
-            <option value="archerCavalry">Archer / Cavalry</option>
+            <option value="infantryArchers">Infantry / Archers</option>
+            <option value="archersCavalry">Archers / Cavalry</option>
             <option value="gathering">Gathering</option>
           </select>
           <button id="optimize-troop-save-btn" class="optimize-troop-save-btn" type="button" title="Save the current weights as your own default for this preset.">Save</button>
           <button id="optimize-troop-reset-btn" class="optimize-troop-reset-btn" type="button" hidden title="Discard your saved default for this preset and go back to the built-in one.">Reset</button>
         </div>
-        <p class="optimize-weight-hint">Save the weights above as your own default for a preset. Saved defaults load whenever you pick that preset and travel with your backup export.</p>
+        <p class="optimize-weight-hint">Saved defaults load whenever you pick that preset, and travel with your backup export.</p>
         <div class="optimize-menu-actions">
           <button id="optimize-clear-btn" class="data-menu-item filter-clear-btn" type="button">Clear weights</button>
           <button id="optimize-run-btn" class="data-menu-item optimize-run-btn" type="button">Optimize unlocked slots</button>
         </div>
       </div>
     </div>
+    <a href="auto-optimize.html" class="btn-ghost nav-promoted-link">Auto-optimize everything…</a>
     <div class="data-menu">
       <button id="filter-menu-btn" class="btn-ghost" type="button" aria-haspopup="true" aria-expanded="false">
         Filter <span id="filter-count-badge" class="filter-count-badge" hidden></span> ▾
@@ -106,7 +111,8 @@
         Data ▾
       </button>
       <div id="data-menu-list" class="data-menu-list" hidden>
-        <a href="sets.html" target="_blank" rel="noopener" class="data-menu-item data-menu-link">Set bonuses reference ↗</a>
+        <a href="sets.html" target="_blank" rel="noopener" class="data-menu-item data-menu-link data-menu-link-tight nav-promoted-item">Set bonuses reference ↗</a>
+        <a href="breakpoints.html" target="_blank" rel="noopener" class="data-menu-item data-menu-link nav-promoted-item">Army command breakpoints ↗</a>
         <button id="load-equipment-csv-btn" class="data-menu-item" type="button">Load equipment CSV…</button>
         <button id="paste-equipment-csv-btn" class="data-menu-item" type="button">Paste equipment CSV…</button>
         <button id="sync-gear-btn" class="data-menu-item" type="button">Sync my gear…</button>
@@ -114,10 +120,13 @@
         <button id="export-loadouts-btn" class="data-menu-item" type="button">Export backup</button>
         <button id="reset-all-heroes-btn" class="data-menu-item" type="button">Clear ALL heroes' loadouts</button>
         <button id="reset-sample-btn" class="data-menu-item" type="button">Reset to sample data</button>
+        <a href="auto-optimize.html" class="data-menu-item data-menu-link data-menu-link-divide-above nav-promoted-item">Auto-optimize everything…</a>
       </div>
       <input id="load-loadouts-input" type="file" accept="application/json" hidden>
       <input id="load-equipment-csv-input" type="file" accept=".csv,.txt,text/csv,text/plain" hidden>
     </div>
+    <a href="sets.html" target="_blank" rel="noopener" class="btn-ghost nav-promoted-link">Set bonuses reference ↗</a>
+    <a href="breakpoints.html" target="_blank" rel="noopener" class="btn-ghost nav-promoted-link">Army command breakpoints ↗</a>
   </div>
 </header>
 
@@ -188,7 +197,11 @@
     </div>
 
     <div id="army-command-wrap" class="army-command-wrap" hidden>
-      <h2 class="panel-heading">Army command</h2>
+      <div class="army-command-head">
+        <h2 class="panel-heading">Army command</h2>
+        <a href="breakpoints.html" target="_blank" rel="noopener" class="army-command-link"
+           title="Every rarity's Attack/Defence/Health ceilings and what it costs to reach them">Breakpoints ↗</a>
+      </div>
       <ul id="army-command" class="ledger army-command"></ul>
     </div>
 
