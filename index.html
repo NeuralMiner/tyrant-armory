@@ -48,6 +48,7 @@
             <option value="cavalry">Cavalry</option>
             <option value="infantryCavalry">Infantry / Cavalry</option>
             <option value="infantryArcher">Infantry / Archer</option>
+            <option value="archerCavalry">Archer / Cavalry</option>
             <option value="gathering">Gathering</option>
           </select>
         </label>
@@ -57,6 +58,11 @@
           <select id="optimize-context-select" class="optimize-context-select"></select>
         </label>
         <p class="optimize-weight-hint">Set bonuses that only apply in a scenario (e.g. Beastlord's Hunt in Monster Dens) count toward the pick only when that scenario is selected.</p>
+        <label class="filter-checkbox-item optimize-max-level-row">
+          <input type="checkbox" id="optimize-max-level">
+          <span>Optimize for max level gear</span>
+        </label>
+        <p class="optimize-weight-hint">Scores every piece at its level cap instead of the level it's on: Attack, Defence and Health projected to max, affixes left exactly as they are — those are rolled from the item's quality when it drops and don't grow with enhancement. Answers "what should I build toward" rather than "what's best right now", so an under-levelled Legendary stops losing to a maxed Rare it will overtake. Totals and item stats read on the same basis while this is on; the Upgrade plan keeps showing today's numbers, since costing those levels is its whole job.</p>
         <div class="filter-menu-list-inner optimize-weight-list" id="optimize-weight-list"></div>
         <div class="optimize-context-row optimize-troop-save-row">
           <span class="optimize-context-label">Save as default for</span>
@@ -67,6 +73,7 @@
             <option value="cavalry">Cavalry</option>
             <option value="infantryCavalry">Infantry / Cavalry</option>
             <option value="infantryArcher">Infantry / Archer</option>
+            <option value="archerCavalry">Archer / Cavalry</option>
             <option value="gathering">Gathering</option>
           </select>
           <button id="optimize-troop-save-btn" class="optimize-troop-save-btn" type="button" title="Save the current weights as your own default for this preset.">Save</button>
@@ -147,9 +154,9 @@
       <div id="upgrade-plan-body" hidden>
         <div class="upgrade-plan-controls">
           <p id="upgrade-plan-summary" class="upgrade-plan-summary"></p>
-          <label class="upgrade-plan-horizon-row">
-            <span>Look ahead</span>
-            <input id="upgrade-plan-horizon" type="number" min="1" step="10000" inputmode="numeric">
+          <label class="upgrade-plan-budget-row">
+            <span>Split</span>
+            <input id="upgrade-plan-budget" type="number" min="1" step="10000" inputmode="numeric">
             <span>XP</span>
           </label>
         </div>
@@ -175,6 +182,7 @@
 
   <aside class="ledger-panel" aria-label="Loadout totals">
     <h2 class="panel-heading">Totals</h2>
+    <p id="max-level-notice" class="max-level-notice" hidden>Gear scored at max level — Attack/Defence/Health projected to each piece's cap, affixes as rolled.</p>
     <div id="ledger" class="ledger">
       <p class="ledger-empty">No items selected yet. Pick gear on the left, or auto-optimize above.</p>
     </div>

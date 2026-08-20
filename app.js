@@ -16,10 +16,15 @@
   const GEAR_MULTIPLIER_STORAGE_KEY = "tyrant-gear-multipliers-v1";
   const SHOW_UPGRADE_PLAN_STORAGE_KEY = "tyrant-show-upgrade-plan-v1";
   const SHOW_PVP_PLAN_STORAGE_KEY = "tyrant-show-pvp-plan-v1";
-  const UPGRADE_HORIZON_STORAGE_KEY = "tyrant-upgrade-xp-horizon-v1";
-  /** How far ahead the upgrade plan looks by default. Roughly the point
-   * where an under-levelled piece and a near-capped one separate clearly. */
-  const DEFAULT_UPGRADE_XP_HORIZON = 50000;
+  /** Key kept from when this number was a per-piece look-ahead window rather
+   * than a pot to split: it holds the same figure the user typed either way,
+   * and a rename would silently reset it back to the default for everyone. */
+  const UPGRADE_BUDGET_STORAGE_KEY = "tyrant-upgrade-xp-horizon-v1";
+  const ACTIVE_OWNER_STORAGE_KEY = "tyrant-active-owner-v1";
+  const OPTIMIZE_SETUP_STORAGE_KEY = "tyrant-optimize-setup-v1";
+  /** How much XP the upgrade plan splits by default. Roughly the point where
+   * an under-levelled piece and a near-capped one separate clearly. */
+  const DEFAULT_UPGRADE_XP_BUDGET = 50000;
 
   /** Built-in presets for the optimize weights. Picking one fills the weight
    * inputs with a full stat weighting tuned for a way of playing — four troop
@@ -60,6 +65,48 @@
         archerAttack: 4999,
         archerDefense: 499,
         archerHealth: 999,
+        firstRoundDamage: 2500,
+        marchCapacity: 1500,
+      },
+    },
+    /** The tankless two-troop march: cavalry charging in, archers shooting
+     * over them. Unlike the infantry pairings there's no wall here — both
+     * halves are damage troops — so this follows the Cavalry preset's spine
+     * (Attack on top, Health at a fifth of it, Defence at a tenth) rather than
+     * Infantry's, and both troops' own Attack sits with generic Attack.
+     *
+     * The two Attacks sit a point apart in Mixed's order, archer then cavalry,
+     * purely so a piece that only differs in which of the two it favours still
+     * sorts. Nothing about the composition says either half kills more.
+     *
+     * No troop-affinity multiplier, same as the other hybrids: it attaches to
+     * exactly one troop type and nothing in the export says which.
+     *
+     * First Round Damage keeps the full Archer/Cavalry value rather than the
+     * infantry pairings' half. There it pays on the damage half of the march
+     * only; here the whole march is the damage half. */
+    archerCavalry: {
+      label: "Archer / Cavalry",
+      weights: {
+        attack: 5000,
+        defense: 500,
+        health: 1000,
+        marchSpeed: 1000,
+        pvpAttack: 5001,
+        attackPercent: 5000,
+        pvpDefense: 1001,
+        defensePercent: 500,
+        healthPercent: 1000,
+        archerAttack: 4999,
+        // Attack only, as in Infantry / Archer: archers shoot from behind the
+        // charge, so a piece buying their Defence or Health is buying nothing
+        // this composition ever uses.
+        cavalryAttack: 4998,
+        // The cavalry are what the enemy actually hits, with no infantry in
+        // front of them, so their bulk keeps the full Cavalry-preset weight
+        // instead of the reduced one the Infantry / Cavalry pairing gives it.
+        cavalryDefense: 499,
+        cavalryHealth: 999,
         firstRoundDamage: 2500,
         marchCapacity: 1500,
       },
@@ -106,30 +153,44 @@
         marchSpeed: 600,
       },
     },
+    /** Damage-first, in three clear tiers: generic Attack on top, Infantry
+     * Attack at half of it, Defence and Health at a fifth.
+     *
+     * Infantry Attack sits a tier below generic Attack rather than alongside
+     * it (the Archer/Cavalry pattern) because generic Attack is the line every
+     * attack-scaling piece can be compared on, and because Infantry Attack
+     * additionally collects the 20% troop affinity this preset applies — half
+     * the base weight still leaves it clearly ahead of the bulk stats once
+     * both are scaled by scenarioWeights().
+     *
+     * Defence and Health keep a fifth of the top weight rather than dropping
+     * out: enough to separate two pieces that offer the same damage, not
+     * enough to buy a bulk piece over a damage one. */
     infantry: {
       label: "Infantry",
       weights: {
-        attack: 500,
-        defense: 5000,
-        health: 5000,
+        attack: 5000,
+        defense: 1000,
+        health: 1000,
         marchSpeed: 1000,
-        pvpAttack: 501,
-        attackPercent: 500,
-        pvpDefense: 5001,
-        defensePercent: 5000,
-        healthPercent: 5000,
-        infantryAttack: 499,
-        infantryDefense: 4999,
-        infantryHealth: 4999,
+        pvpAttack: 5001,
+        attackPercent: 5000,
+        pvpDefense: 1001,
+        defensePercent: 1000,
+        healthPercent: 1000,
+        infantryAttack: 2500,
+        infantryDefense: 999,
+        infantryHealth: 999,
         firstRoundDamage: 1,
         marchCapacity: 1500,
       },
     },
     /** The two-troop marches: infantry up front soaking the hits, a second
-     * type behind them doing the damage. Both share the same infantry spine —
-     * Defence and Health at the top, generic Attack held to half weight
-     * because only the back half of the march spends it — and differ only in
-     * which second troop's stats they buy.
+     * type behind them doing the damage. Both share the Infantry preset's
+     * spine — generic Attack on top, Infantry Attack at half of it, Defence
+     * and Health at a fifth — and differ only in which second troop's stats
+     * they buy. The second troop's own Attack sits with generic Attack rather
+     * than below it: that half of the march is there to kill things.
      *
      * Neither gets a troop-affinity multiplier (they're absent from
      * PRESET_TROOP_STAT_PREFIX, like Mixed). Affinity attaches to exactly one
@@ -137,28 +198,27 @@
      * claim it for both halves without inventing the answer.
      *
      * First Round Damage sits at half the Archer/Cavalry value: it pays on the
-     * damage half of the march only, and the infantry half is why you brought
-     * the composition. */
+     * damage half of the march only. */
     infantryArcher: {
       label: "Infantry / Archer",
       weights: {
-        attack: 2500,
-        defense: 5000,
-        health: 5000,
+        attack: 5000,
+        defense: 1000,
+        health: 1000,
         marchSpeed: 1000,
-        pvpAttack: 2501,
-        attackPercent: 2500,
-        pvpDefense: 5001,
-        defensePercent: 5000,
-        healthPercent: 5000,
-        infantryAttack: 250,
-        infantryDefense: 4999,
-        infantryHealth: 4999,
+        pvpAttack: 5001,
+        attackPercent: 5000,
+        pvpDefense: 1001,
+        defensePercent: 1000,
+        healthPercent: 1000,
+        infantryAttack: 2500,
+        infantryDefense: 999,
+        infantryHealth: 999,
         // Attack only. Archers stand behind the wall, so their own Defence and
         // Health never get tested — a piece carrying them is carrying dead
         // weight for this composition, and is left unscored rather than
         // scored low.
-        archerAttack: 2499,
+        archerAttack: 4999,
         firstRoundDamage: 1250,
         marchCapacity: 1500,
       },
@@ -166,28 +226,40 @@
     infantryCavalry: {
       label: "Infantry / Cavalry",
       weights: {
-        attack: 2500,
-        defense: 5000,
-        health: 5000,
+        attack: 5000,
+        defense: 1000,
+        health: 1000,
         marchSpeed: 1000,
-        pvpAttack: 2501,
-        attackPercent: 2500,
-        pvpDefense: 5001,
-        defensePercent: 5000,
-        healthPercent: 5000,
-        infantryAttack: 250,
-        infantryDefense: 4999,
-        infantryHealth: 4999,
+        pvpAttack: 5001,
+        attackPercent: 5000,
+        pvpDefense: 1001,
+        defensePercent: 1000,
+        healthPercent: 1000,
+        infantryAttack: 2500,
+        infantryDefense: 999,
+        infantryHealth: 999,
         // All three, unlike the archer pairing: cavalry charge into the same
         // fight the infantry are holding, so their bulk earns its keep. Attack
         // still leads — they're the half that's there to kill things.
-        cavalryAttack: 2499,
-        cavalryDefense: 1999,
-        cavalryHealth: 1999,
+        cavalryAttack: 4999,
+        cavalryDefense: 400,
+        cavalryHealth: 400,
         firstRoundDamage: 1250,
         marchCapacity: 1500,
       },
     },
+    /** Everything in one march, so the generic stats carry the weight and the
+     * troop-type ones only break ties between otherwise equal pieces.
+     *
+     * The three Attacks sit a step apart rather than level — archer, then
+     * cavalry, then infantry — so a piece that only differs in which troop it
+     * favours still sorts, without the gap being wide enough to outrank a
+     * piece carrying more of anything else.
+     *
+     * Infantry follows the Infantry preset's spine: Attack on top, Defence and
+     * Health at the same 2.5:1 behind it. Infantry are the front line here, but
+     * a piece that only adds to their bulk still buys less than one that adds
+     * damage — the same call the Infantry preset makes. */
     mixed: {
       label: "Mixed",
       weights: {
@@ -201,14 +273,14 @@
         defensePercent: 4000,
         healthPercent: 4000,
         archerAttack: 1000,
-        cavalryAttack: 750,
-        infantryAttack: 250,
+        cavalryAttack: 950,
+        infantryAttack: 900,
         archerDefense: 100,
         cavalryDefense: 750,
-        infantryDefense: 1000,
+        infantryDefense: 360,
         archerHealth: 100,
         cavalryHealth: 750,
-        infantryHealth: 1000,
+        infantryHealth: 360,
         firstRoundDamage: 2500,
         marchCapacity: 1500,
       },
@@ -238,11 +310,12 @@
      * it answers "what do I spend Valor on", which needs no setup beyond the
      * weights the panel above it already asks for. */
     showPvpPlan: true,
-    /** How much XP the upgrade plan looks ahead by when ranking pieces. Not a
-     * budget to carve up — each piece is costed independently over this window,
-     * so the ranking answers "where does my next chunk of XP do the most good".
+    /** The pot of XP the upgrade plan splits across the equipped pieces. A
+     * real budget: the rows carve this up between them rather than each costing
+     * it separately, so the plan answers "I have this much XP, where does it
+     * go" rather than "which piece would like it most".
      * Only the plan reads it; it never changes which items the optimizer picks. */
-    upgradeXpHorizon: DEFAULT_UPGRADE_XP_HORIZON,
+    upgradeXpBudget: DEFAULT_UPGRADE_XP_BUDGET,
     heroes: SAMPLE_HEROES,
     availableStats: [],
     knownSetSizes: SAMPLE_KNOWN_SET_SIZES,
@@ -289,6 +362,21 @@
      * for that troop. Persisted to localStorage and included in backup
      * export/import. A troop with no entry here falls back to the built-in. */
     customTroopPresets: {},
+    /** Whether every scoring path reads gear at its LEVEL CAP instead of at
+     * the level it's actually on. Only attack/defence/health move: those are
+     * the three stats a level buys (see LEVEL_SCALED_STAT_KEYS in
+     * gear-progression.js), and every percentage affix is a roll fixed by the
+     * item's quality when it dropped, so it reads the same at level 1 and at
+     * the cap. Answers "which gear wins once I've enhanced everything" rather
+     * than "which gear is ahead today", which are different questions whenever
+     * an under-levelled legendary is sitting behind a maxed rare.
+     *
+     * Not optimizer-only: the ledger, the item stat lines and the picker's
+     * compare all follow it, or the pick it makes would be unreadable next to
+     * numbers taken on a different basis. The Upgrade plan is the one
+     * exception — it exists to price the levels this projection assumes you've
+     * already bought, so it always reads today's stats (see buildUpgradePlan). */
+    maxLevelScoring: false,
     /** Scenario the optimizer scores set bonuses for — see
      * optimizeContextOptions() in set-bonuses.js. "general" (the default)
      * counts only unconditional bonuses, so a Monster-Dens-only set doesn't
@@ -332,8 +420,14 @@
    * of its own and puts a gap around each " · " — the wrapper keeps the phrase
    * flowing as text and leaves flex to space the dot and the status tags. */
   function itemMetaHtml(it) {
+    // While max-level scoring is on the stats below this line are the item's at
+    // its cap, so the level has to say so — "Lvl 12" over capped numbers reads
+    // as a wildly overstated level-12 piece.
+    const levelText = state.maxLevelScoring && it.projectedLevelsToGo
+      ? `Lvl ${it.level} → ${it.projectedMaxLevel}`
+      : `Lvl ${it.level}`;
     return `<span class="rarity-dot"></span><span class="item-meta-text">${it.rarity} · `
-      + `<span class="item-level">Lvl ${it.level}</span>${qualityMetaHtml(it)}</span>`;
+      + `<span class="item-level">${levelText}</span>${qualityMetaHtml(it)}</span>`;
   }
 
   /** A hero with different march/instanced equip states is split into two
@@ -465,6 +559,21 @@
     }
   }
 
+  /** Parse a raw {statKey:weight} object, keeping known stat keys with a
+   * positive numeric weight and dropping everything else. Shared by the troop
+   * presets and the saved optimize setup, so a hand-edited or stale entry
+   * can't inject junk into either. */
+  function sanitizeStatWeights(raw) {
+    const clean = {};
+    if (!raw || typeof raw !== "object") return clean;
+    for (const [statKey, value] of Object.entries(raw)) {
+      if (!(statKey in STAT_LABELS)) continue; // drop unknown stat keys from stale/hand-edited files
+      const num = Number(value);
+      if (Number.isFinite(num) && num > 0) clean[statKey] = num;
+    }
+    return clean;
+  }
+
   /** Parse a raw troopKey->{statKey:weight} object, keeping only known troop
    * keys and positive numeric weights. Shared by localStorage restore and
    * backup import, so a hand-edited or stale file can't inject junk. */
@@ -473,13 +582,7 @@
     if (!raw || typeof raw !== "object") return clean;
     for (const [troopKey, weights] of Object.entries(raw)) {
       if (!(troopKey in TROOP_PRIORITY_PRESETS)) continue;
-      if (!weights || typeof weights !== "object") continue;
-      const cleanWeights = {};
-      for (const [statKey, value] of Object.entries(weights)) {
-        if (!(statKey in STAT_LABELS)) continue; // drop unknown stat keys from stale/hand-edited files
-        const num = Number(value);
-        if (Number.isFinite(num) && num > 0) cleanWeights[statKey] = num;
-      }
+      const cleanWeights = sanitizeStatWeights(weights);
       if (Object.keys(cleanWeights).length) clean[troopKey] = cleanWeights;
     }
     return clean;
@@ -739,6 +842,31 @@
     }
   }
 
+  /** Keep the player on the hero they were looking at across a data swap.
+   *
+   * A re-export can change a hero's owner id without changing the hero: one
+   * whose march and instanced gear differ splits into "<id>::march" and
+   * "<id>::instanced", and merges back to a plain "<id>" once they agree (see
+   * csv-import.js). Matching on the exact id alone dropped the player to the
+   * scratch space on any import that crossed that line — the hero was right
+   * there in the list under a neighbouring id. So fall back to the same
+   * underlying hero (heroGroupKey) under whatever id this data gives them, and
+   * give up only when the hero is genuinely absent.
+   *
+   * Matched against state.heroes rather than the loadout map so whatever it
+   * lands on is always an option in the hero <select>; callers follow with
+   * ensureOwnerLoadout to give it a loadout. */
+  function retainActiveOwner() {
+    if (state.activeOwner === NO_HERO_OWNER) return;
+    if (state.heroes.some((h) => h.id === state.activeOwner)) return;
+    const group = heroGroupKey(state.activeOwner);
+    const sameHero = state.heroes.find((h) => heroGroupKey(h.id) === group);
+    state.activeOwner = sameHero ? sameHero.id : NO_HERO_OWNER;
+    // The id moved under the player, so the remembered one is now stale —
+    // write the new one back or a reload would land on the scratch space.
+    saveActiveOwner();
+  }
+
   function applyEquipmentData(data, { isSample }) {
     // Any pending preview belongs to whatever loadout/hero was active in the
     // PREVIOUS session — new data (including a fresh live sync) invalidates it.
@@ -786,13 +914,28 @@
     if (!isSample) saveEquipmentData();
     else localStorage.removeItem(EQUIPMENT_STORAGE_KEY);
 
-    if (!(state.activeOwner in state.loadoutsByOwner)) state.activeOwner = NO_HERO_OWNER;
+    retainActiveOwner();
     ensureOwnerLoadout(state.activeOwner);
+    // The scale refreshed above predates the owner this data resolved to, and
+    // it is computed per hero and per loadout — so redo it now both are
+    // settled, or the ledger scores the new hero on the old hero's curve.
+    refreshBreakpointScale();
 
     renderHeroSelect();
     renderOptimizeContextSelect();
-    renderOptimizeWeightList();
-    updateOptimizeWeightBadge();
+    // A preset only ever fills in the stats the inventory had AT THE TIME, so
+    // one picked before this load is missing every stat only the new data
+    // knows about — and the prune above may have just stripped more. Re-apply
+    // it against the inventory that's actually loaded now. It repaints the
+    // weight list and badge itself, so only do that here when no preset is in
+    // force and the weights standing are the player's own.
+    if (!reapplyActiveTroopPreset()) {
+      // Hand-set weights, so nothing re-derived them — but the prune above may
+      // have dropped some, and what's left is what should come back next time.
+      saveOptimizeSetup();
+      renderOptimizeWeightList();
+      updateOptimizeWeightBadge();
+    }
     renderFilterMenu();
     updateFilterCountBadge();
     renderSlots();
@@ -1050,10 +1193,14 @@
     if (data.loadoutsByOwner) {
       state.loadoutsByOwner = sanitizeLoadouts(data.loadoutsByOwner);
       saveLoadouts();
-      if (!(state.activeOwner in state.loadoutsByOwner)) state.activeOwner = NO_HERO_OWNER;
+      // retainActiveOwner(), renderHeroSelect() and invalidatePendingLiveEquip()
+      // already ran inside applyEquipmentData() above, and nothing since has
+      // touched state.heroes, state.activeOwner or the live-equip preview — so
+      // re-running them here would just repeat the same result. Only
+      // ensureOwnerLoadout/refreshBreakpointScale/renderSlots/refreshTotals need
+      // to run again: the loadout map itself just got replaced by the backup's.
       ensureOwnerLoadout(state.activeOwner);
       refreshBreakpointScale();
-      invalidatePendingLiveEquip();
       renderSlots();
       refreshTotals();
     } else {
@@ -1118,7 +1265,7 @@
   const upgradePlanWrapEl = document.getElementById("upgrade-plan-wrap");
   const upgradePlanEl = document.getElementById("upgrade-plan");
   const upgradePlanSummaryEl = document.getElementById("upgrade-plan-summary");
-  const upgradePlanHorizonEl = document.getElementById("upgrade-plan-horizon");
+  const upgradePlanBudgetEl = document.getElementById("upgrade-plan-budget");
   const upgradePlanToggleEl = document.getElementById("upgrade-plan-toggle");
   const upgradePlanBodyEl = document.getElementById("upgrade-plan-body");
   const pvpPlanWrapEl = document.getElementById("pvp-plan-wrap");
@@ -1136,6 +1283,8 @@
   const optimizeClearBtnEl = document.getElementById("optimize-clear-btn");
   const optimizeRunBtnEl = document.getElementById("optimize-run-btn");
   const optimizeContextSelectEl = document.getElementById("optimize-context-select");
+  const optimizeMaxLevelEl = document.getElementById("optimize-max-level");
+  const maxLevelNoticeEl = document.getElementById("max-level-notice");
   const armyCommandWrapEl = document.getElementById("army-command-wrap");
   const armyCommandEl = document.getElementById("army-command");
   const optimizeTroopSelectEl = document.getElementById("optimize-troop-select");
@@ -1264,9 +1413,10 @@
     return present;
   }
 
-  /** Attach each item's level ceiling and how far it still has to climb — the
-   * two figures the upgrade plan costs its levels against, worked out once at
-   * import instead of per item per render.
+  /** Attach each item's level ceiling, how far it still has to climb, and what
+   * it would read at that ceiling — the figures the upgrade plan costs its
+   * levels against and max-level scoring reads, worked out once at import
+   * instead of per item per render.
    *
    * Cached on the item rather than stored: derived entirely from fields already
    * on it, so it's recomputed on load and deliberately stripped before
@@ -1276,23 +1426,48 @@
       const projection = projectItemToMaxLevel(it);
       it.projectedMaxLevel = projection.maxLevel;
       it.projectedLevelsToGo = projection.levelsToGo;
+      it.projectedMaxStats = projection.stats;
+      it.projectedMaxStatLines = nonzeroStats(projection.stats);
     }
     return equipment;
   }
 
   /** The stats every scoring path reads: what an item is worth TODAY, at the
-   * level it's actually on. Nothing on screen scores gear at a level it hasn't
-   * been given — the upgrade plan is the one place that looks ahead, and it
-   * projects levels itself from rawStats (see planPieceOverHorizon). */
+   * level it's actually on — or at its level CAP while max-level scoring is on
+   * (see state.maxLevelScoring).
+   *
+   * Falls back to rawStats for anything with no cached projection, which is
+   * what keeps the toggle honest for the synthetic items the scoring code
+   * builds out of loose stat dicts (set-bonus ceilings, upgrade-plan
+   * what-ifs). Those aren't gear and have no level to project from, so
+   * levelling them would be inventing stats out of nothing. */
   function scoreStats(item) {
     if (!item) return {};
+    if (state.maxLevelScoring && item.projectedMaxStats) return item.projectedMaxStats;
     return item.rawStats || {};
+  }
+
+  /** What an item reads TODAY, whatever the max-level toggle says. For the one
+   * caller whose whole subject is the levels the projection assumes bought. */
+  function currentStats(item) {
+    if (!item) return {};
+    return item.rawStats || {};
+  }
+
+  /** The pre-formatted stat strings for an item's card, on the same basis the
+   * optimizer just scored it — so a piece picked for what it becomes doesn't
+   * sit under the numbers it has today. */
+  function displayStatLines(item) {
+    if (state.maxLevelScoring && item.projectedMaxStatLines) return item.projectedMaxStatLines;
+    return item.stats;
   }
 
   /** An item without its cached projection, for anything that leaves the app
    * (localStorage, backup export). */
   function stripProjections(item) {
-    const { projectedMaxLevel, projectedLevelsToGo, ...rest } = item;
+    const {
+      projectedMaxLevel, projectedLevelsToGo, projectedMaxStats, projectedMaxStatLines, ...rest
+    } = item;
     return rest;
   }
 
@@ -1333,20 +1508,111 @@
     if (bodyEl) bodyEl.hidden = !open;
   }
 
-  function saveUpgradeXpHorizon() {
+  /** Which hero the player was looking at, so a reload comes back on them
+   * rather than on the no-hero scratch space. Only the owner key is kept —
+   * the loadout behind it already persists under LOADOUTS_STORAGE_KEY. */
+  function saveActiveOwner() {
     try {
-      localStorage.setItem(UPGRADE_HORIZON_STORAGE_KEY, String(state.upgradeXpHorizon || 0));
+      localStorage.setItem(ACTIVE_OWNER_STORAGE_KEY, state.activeOwner);
     } catch (err) {
-      console.warn("Couldn't save the upgrade XP horizon:", err);
+      console.warn("Couldn't save the selected hero:", err);
     }
   }
 
-  function loadSavedUpgradeXpHorizon() {
+  /** The saved owner key, unvalidated: whether that hero still exists is
+   * settled by retainActiveOwner, which also handles the march/instanced id
+   * split. An absent entry means the scratch space, same as a fresh visit. */
+  function loadSavedActiveOwner() {
     try {
-      const raw = Number(localStorage.getItem(UPGRADE_HORIZON_STORAGE_KEY));
-      return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_UPGRADE_XP_HORIZON;
+      return localStorage.getItem(ACTIVE_OWNER_STORAGE_KEY) || NO_HERO_OWNER;
     } catch (err) {
-      return DEFAULT_UPGRADE_XP_HORIZON;
+      return NO_HERO_OWNER;
+    }
+  }
+
+  /** The auto-optimize setup: the preset the troop dropdown names, the weights
+   * standing under it, and the scenario. One record because the three are only
+   * meaningful together — weights without their preset label read as hand-set,
+   * and a scenario restored without the override bookkeeping behind it
+   * (presetAppliedScenario, see there) is one no later preset can undo. */
+  function saveOptimizeSetup() {
+    try {
+      localStorage.setItem(OPTIMIZE_SETUP_STORAGE_KEY, JSON.stringify({
+        preset: optimizeTroopSelectEl ? optimizeTroopSelectEl.value : "custom",
+        weights: state.optimizeWeights,
+        scenario: state.optimizeContext,
+        maxLevel: state.maxLevelScoring,
+        presetScenario: presetAppliedScenario,
+        scenarioBefore: scenarioBeforePreset,
+      }));
+    } catch (err) {
+      console.warn("Couldn't save the auto-optimize setup:", err);
+    }
+  }
+
+  /** The saved setup with every field validated, or null when there is none.
+   * An unknown preset key becomes "custom", which is also what the weights are
+   * then read as: the player's own, applied verbatim rather than re-derived. */
+  function loadSavedOptimizeSetup() {
+    let raw = null;
+    try {
+      raw = JSON.parse(localStorage.getItem(OPTIMIZE_SETUP_STORAGE_KEY) || "null");
+    } catch (err) {
+      console.warn("Couldn't parse the saved auto-optimize setup:", err);
+    }
+    if (!raw || typeof raw !== "object") return null;
+    const preset = typeof raw.preset === "string" && raw.preset in TROOP_PRIORITY_PRESETS
+      ? raw.preset
+      : "custom";
+    return {
+      preset,
+      weights: sanitizeStatWeights(raw.weights),
+      scenario: typeof raw.scenario === "string" ? raw.scenario : "general",
+      maxLevel: raw.maxLevel === true,
+      presetScenario: typeof raw.presetScenario === "string" ? raw.presetScenario : null,
+      scenarioBefore: typeof raw.scenarioBefore === "string" ? raw.scenarioBefore : null,
+    };
+  }
+
+  /** Put the saved setup back into state and onto the troop dropdown, before
+   * either select is rendered — renderOptimizeContextSelect reflects the
+   * scenario from state, and the dropdown's value decides whether init
+   * re-derives the weight list from a preset or takes it as saved.
+   *
+   * Weights are pruned to the stats this inventory actually has, the same
+   * filter applyTroopPreset puts a preset through and for the same reason: the
+   * weight list only offers available stats, so anything else would count
+   * toward the badge and the scoring while being invisible. */
+  function restoreOptimizeSetup() {
+    const saved = loadSavedOptimizeSetup();
+    if (!saved) return;
+    const available = new Set(state.availableStats);
+    const weights = {};
+    for (const [key, value] of Object.entries(saved.weights)) {
+      if (available.has(key)) weights[key] = value;
+    }
+    state.optimizeWeights = weights;
+    state.optimizeContext = saved.scenario;
+    state.maxLevelScoring = saved.maxLevel;
+    presetAppliedScenario = saved.presetScenario;
+    scenarioBeforePreset = saved.scenarioBefore;
+    if (optimizeTroopSelectEl) optimizeTroopSelectEl.value = saved.preset;
+  }
+
+  function saveUpgradeXpBudget() {
+    try {
+      localStorage.setItem(UPGRADE_BUDGET_STORAGE_KEY, String(state.upgradeXpBudget || 0));
+    } catch (err) {
+      console.warn("Couldn't save the upgrade XP budget:", err);
+    }
+  }
+
+  function loadSavedUpgradeXpBudget() {
+    try {
+      const raw = Number(localStorage.getItem(UPGRADE_BUDGET_STORAGE_KEY));
+      return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_UPGRADE_XP_BUDGET;
+    } catch (err) {
+      return DEFAULT_UPGRADE_XP_BUDGET;
     }
   }
 
@@ -1366,6 +1632,19 @@
       }
     }
     return scale;
+  }
+
+  /** Every item in the inventory, back out of the per-slot buckets. */
+  function allEquipment() {
+    return state.slotOrder.flatMap((slot) => state.itemsBySlot[slot] || []);
+  }
+
+  /** Re-read the per-stat normalization references from the inventory as it
+   * currently scores. Needed on a data load (new items, new maxima) and on a
+   * max-level toggle (same items, different stats) — without it a weight of 1
+   * keeps meaning what it meant against the old basis. */
+  function refreshStatScale() {
+    state.statScale = computeStatScale(allEquipment());
   }
 
   function activeHero() {
@@ -1524,12 +1803,15 @@
     return items.filter(itemMatchesActiveFilters).length;
   }
 
-  function sumStats(items) {
+  /** `statsOf` picks the basis: scoreStats (whatever the max-level toggle says)
+   * for everything on screen, currentStats for the upgrade plan. */
+  function sumStats(items, statsOf = scoreStats) {
     const totals = {};
     for (const key of Object.keys(STAT_LABELS)) totals[key] = 0;
     for (const it of items) {
+      const stats = statsOf(it);
       for (const key of Object.keys(STAT_LABELS)) {
-        totals[key] += scoreStats(it)[key] || 0;
+        totals[key] += stats[key] || 0;
       }
     }
     return totals;
@@ -1547,9 +1829,9 @@
   /** Gear stats + active set bonuses combined into one raw dict (all
    * STAT_LABELS keys present, including zeros) — the shared basis for both
    * the ledger display and loadout-vs-loadout comparison. */
-  function combinedStatsForLoadout(loadout) {
+  function combinedStatsForLoadout(loadout, statsOf = scoreStats) {
     const selected = selectedItemsForLoadout(loadout);
-    const gearTotals = sumStats(selected);
+    const gearTotals = sumStats(selected, statsOf);
     const setBonusTotals = computeActiveSetBonusStats(selected);
     const combined = { ...gearTotals };
     for (const [key, value] of Object.entries(setBonusTotals)) {
@@ -2329,13 +2611,20 @@
     pickerCompareBtnEl.disabled = count !== 2;
   }
 
+  /** The level a compared item is being SHOWN at, which is its cap rather than
+   * its current level while max-level scoring is on. */
+  function compareLevelLabel(item) {
+    if (state.maxLevelScoring && item.projectedMaxStats) return `Lvl ${item.projectedMaxLevel} max`;
+    return `Lvl ${item.level}`;
+  }
+
   function openItemCompareModal(slot, itemIdA, itemIdB) {
     const itemA = itemById(slot, itemIdA);
     const itemB = itemById(slot, itemIdB);
     compareControlsEl.hidden = true;
     renderLoadoutDiff(
-      `${itemA.name} (Lvl ${itemA.level})`, itemA.rawStats,
-      `${itemB.name} (Lvl ${itemB.level})`, itemB.rawStats
+      `${itemA.name} (${compareLevelLabel(itemA)})`, scoreStats(itemA),
+      `${itemB.name} (${compareLevelLabel(itemB)})`, scoreStats(itemB)
     );
     compareOverlayEl.hidden = false;
   }
@@ -2352,6 +2641,11 @@
       opt.textContent = hero.name;
       heroSelectEl.appendChild(opt);
     }
+    // Rebuilding the options drops the selection back to the first one, which
+    // would show "no hero" over a state that says otherwise. Reflect the
+    // active owner, the way renderOptimizeContextSelect reflects the scenario.
+    heroSelectEl.value = state.activeOwner;
+    if (heroSelectEl.selectedIndex < 0) heroSelectEl.value = NO_HERO_OWNER;
   }
 
   /** Number of stats with a nonzero weight — shown as a badge on the
@@ -2384,6 +2678,10 @@
       optimizeContextSelectEl.appendChild(opt);
     }
     optimizeContextSelectEl.value = state.optimizeContext;
+    // A restored scenario names a set context that this build of the app may
+    // no longer define, which would leave the <select> showing nothing over a
+    // state that says otherwise. "General" is always on offer.
+    if (optimizeContextSelectEl.selectedIndex < 0) setOptimizeContext("general");
   }
 
   function renderOptimizeWeightList() {
@@ -2406,6 +2704,7 @@
         e.stopPropagation();
         state.optimizeWeights = { [key]: 1 };
         optimizeTroopSelectEl.value = "custom";
+        saveOptimizeSetup();
         renderOptimizeWeightList();
         updateOptimizeWeightBadge();
       });
@@ -2425,6 +2724,7 @@
         else delete state.optimizeWeights[key];
         // A hand-edited weight no longer matches any preset.
         optimizeTroopSelectEl.value = "custom";
+        saveOptimizeSetup();
         updateOptimizeWeightBadge();
       });
 
@@ -2447,9 +2747,46 @@
       if (available.has(key)) weights[key] = value;
     }
     state.optimizeWeights = weights;
+    // A preset none of whose stats the inventory has applies nothing, and does
+    // it silently: the dropdown names the preset, the weight list stays empty,
+    // and Optimize answers with "give at least one stat a weight first" as if
+    // the player had never picked one. Reachable with a saved default whose
+    // stats a newly loaded inventory doesn't carry. Say what happened.
+    if (!Object.keys(weights).length && Object.keys(presetWeights).length) {
+      const label = (TROOP_PRIORITY_PRESETS[presetKey] || {}).label || presetKey;
+      showToast(`No stat in this inventory is one the ${label} preset weights `
+        + `— weights left empty. Load the data those stats come from, or set weights by hand.`);
+    }
     applyPresetScenario(presetKey);
+    saveOptimizeSetup();
     renderOptimizeWeightList();
     updateOptimizeWeightBadge();
+  }
+
+  /** Re-run whichever preset the troop dropdown is pointing at, for when the
+   * thing a preset is filtered against — the inventory's stat set — changes
+   * under it. Returns whether a preset was applied; "Custom" means the weights
+   * standing are hand-set and there's nothing to re-derive.
+   *
+   * The scenario is deliberately not re-asserted over a manual choice: a
+   * re-apply is the inventory changing, not the player picking the preset
+   * again, so a scenario that's theirs (presetAppliedScenario null — see there)
+   * is put back afterwards. */
+  function reapplyActiveTroopPreset() {
+    if (!optimizeTroopSelectEl) return false;
+    const presetKey = optimizeTroopSelectEl.value;
+    if (!presetKey || presetKey === "custom") return false;
+    const playerOwnsScenario = presetAppliedScenario === null;
+    const scenarioBefore = state.optimizeContext;
+    applyTroopPreset(presetKey);
+    if (playerOwnsScenario && state.optimizeContext !== scenarioBefore) {
+      setOptimizeContext(scenarioBefore);
+      forgetPresetScenario();
+      // applyTroopPreset wrote the preset's scenario down a moment ago; the
+      // player's is the one that stands, so it has to be the one saved.
+      saveOptimizeSetup();
+    }
+    return true;
   }
 
   /** Presets that imply the scenario their gear is used in, so picking one
@@ -2477,6 +2814,23 @@
    * player's again and no later preset should take it back. */
   let presetAppliedScenario = null;
   let scenarioBeforePreset = null;
+
+  /** Flip the scoring basis between "gear as it is" and "gear at its cap".
+   *
+   * Everything downstream of scoreStats moves at once, which is why this
+   * repaints rather than just setting a flag: the stat-scale divisors are read
+   * off the same numbers (so a weight of 1 goes on meaning the same thing), the
+   * slot cards and picker restate their stats on the new basis, and the ledger
+   * and both plan panels re-derive from it. Nothing about the loadout itself
+   * changes — the toggle picks the question, the Optimize button answers it. */
+  function setMaxLevelScoring(on) {
+    state.maxLevelScoring = Boolean(on);
+    if (optimizeMaxLevelEl) optimizeMaxLevelEl.checked = state.maxLevelScoring;
+    refreshStatScale();
+    saveOptimizeSetup();
+    renderSlots();
+    refreshTotals();
+  }
 
   function setOptimizeContext(value) {
     state.optimizeContext = value;
@@ -2539,6 +2893,9 @@
     state.customTroopPresets[troopKey] = weights;
     saveTroopPresets();
     optimizeTroopSelectEl.value = troopKey;
+    // The weights didn't move, but the dropdown now names this preset instead
+    // of Custom, and that label is half of what a reload restores.
+    saveOptimizeSetup();
     updateTroopPresetControls();
     showToast(`Saved these weights as your ${TROOP_PRIORITY_PRESETS[troopKey].label} default.`);
   }
@@ -2628,10 +2985,11 @@
         meta.innerHTML = itemMetaHtml(it);
         card.appendChild(meta);
 
-        if (it.stats.length) {
+        const statLines = displayStatLines(it);
+        if (statLines.length) {
           const stats = document.createElement("div");
           stats.className = "slot-stats";
-          stats.textContent = it.stats.join(" · ");
+          stats.textContent = statLines.join(" · ");
           card.appendChild(stats);
         }
       } else {
@@ -2786,10 +3144,11 @@
       }
       btn.appendChild(metaLine);
 
-      if (it.stats.length) {
+      const statLines = displayStatLines(it);
+      if (statLines.length) {
         const statsLine = document.createElement("div");
         statsLine.className = "picker-option-stats";
-        statsLine.textContent = it.stats.join(" · ");
+        statsLine.textContent = statLines.join(" · ");
         btn.appendChild(statsLine);
       }
 
@@ -2837,25 +3196,23 @@
    * Totals. The line carries just the percentage; the raw stat feeding the
    * curve and the cap threshold sit in the row's tooltip, with a capped stat
    * flagged inline since that's the one thing worth acting on. */
-  /** What to enhance next, for the loadout currently on screen.
+  /** Where the next chunk of XP goes, for the loadout currently on screen.
    *
-   * Ranked by weighted score gained per XP spent, which is the only ranking
-   * that answers the actual question. Ordering by raw power gained would just
-   * list the legendaries — they gain the most because they start highest, and
-   * they also cost 8x a common for the same level.
+   * One pot, split across the pieces. "I have 20,000 XP" has an answer that
+   * carves that pot up, and it can't be assembled out of per-piece costings:
+   * two pieces feeding the same hero stat compete, so the second one in is
+   * worth less than it looks measured on its own. allocateUpgradeXp does the
+   * carving, one level at a time, against a shared running total.
    *
-   * The per-XP figure is exact enough to rank on. A level adds a FIXED amount
-   * of attack/defence/health (LEVEL_STAT_STEP of the item's level-1 stats, not
-   * a percentage of its current), and weightedScore is linear in stats, so
-   * spreading an item's total gain evenly across its remaining levels is the
-   * real per-level value rather than an average standing in for one. Only the
-   * hero breakpoint curve is non-linear, and that bends the same way for every
-   * row here.
+   * Value per XP is the rule at every step. Ordering by raw power gained would
+   * just list the legendaries — they gain the most because they start highest,
+   * and they also cost 8x a common for the same level.
    *
-   * "Next levels" is the part worth acting on: costs compound at 8% a level
-   * while the gain per level stays flat, so an item's cheapest remaining levels
-   * are always its next ones, and the first few are typically several times the
-   * value per XP of the last few. */
+   * A piece's cheapest remaining levels are always its next ones: cost
+   * compounds at 8% a level while the stats a level adds stay flat
+   * (LEVEL_STAT_STEP of the item's LEVEL-1 stats, not a percentage of its
+   * current). That's why an under-levelled piece keeps winning steps until it
+   * has caught up, and why the split lands where it does. */
   function scoreItemStats(stats, weights) {
     return optimisticItemValue({ rawStats: stats }, weights);
   }
@@ -2905,7 +3262,9 @@
    *
    * Null when there's no hero to run a curve for; the caller falls back to
    * reporting the flat stat change instead. */
-  function armyCommandDeltas(fromStats, toStats) {
+  const MIN_SHOWN_COMMAND_MOVE = 0.00005;
+
+  function armyCommandDeltas(fromStats, toStats, minMove = MIN_SHOWN_COMMAND_MOVE) {
     const hero = activeHero();
     if (!hero || !hero.statTotals) return null;
     const rarity = hero.rarity || DEFAULT_HERO_RARITY;
@@ -2915,7 +3274,7 @@
     for (const [statKey, { kind }] of Object.entries(BREAKPOINT_STATS)) {
       const delta = heroStatPercent(rarity, kind, after[statKey])
         - heroStatPercent(rarity, kind, before[statKey]);
-      if (Math.abs(delta) > 0.00005) deltas[statKey] = delta;
+      if (Math.abs(delta) > minMove) deltas[statKey] = delta;
     }
     return deltas;
   }
@@ -2923,9 +3282,13 @@
   /** Positive movement only — for the upgrade plan, where buying levels can
    * only ever add stats and a negative would mean a bug rather than a
    * trade-off. Anything that can LOSE a stat wants armyCommandDeltas instead:
-   * filtering a swap's losses away here reports a straight gain for a trade. */
-  function armyCommandGains(fromStats, toStats) {
-    const deltas = armyCommandDeltas(fromStats, toStats);
+   * filtering a swap's losses away here reports a straight gain for a trade.
+   *
+   * Pass minMove: 0 to keep movements too small to print. Nothing displays a
+   * figure that way, but a caller summing many small steps has to, or the sum
+   * comes out short of the whole it's meant to add up to. */
+  function armyCommandGains(fromStats, toStats, minMove) {
+    const deltas = armyCommandDeltas(fromStats, toStats, minMove);
     if (!deltas) return null;
     const gains = {};
     for (const [statKey, delta] of Object.entries(deltas)) {
@@ -2934,106 +3297,205 @@
     return gains;
   }
 
-  /** How far a given piece is worth taking, and what that buys, if the next
-   * `horizon` XP went into that piece ALONE.
+  /** Split a pot of XP across the equipped pieces, best value per XP first.
    *
-   * Each piece is costed independently against the loadout as it stands today.
-   * That's deliberate: the question is "where should the next chunk of XP go",
-   * and the answer has to be comparable piece by piece rather than a carve-up
-   * of one pot — you enhance one thing at a time, and a piece's ranking
-   * shouldn't depend on what the others happened to be allocated.
+   * Greedy, one level at a time: each step buys the single best-value level
+   * available anywhere in the loadout, then re-scores the whole loadout before
+   * choosing the next. Greedy isn't a shortcut here, it's the answer — every
+   * piece's value curve is concave (a level adds a fixed stat step while its
+   * cost compounds at 8%, and the hero's breakpoint curve flattens on top of
+   * that), and on concave curves taking the best marginal step every time is
+   * the best split of the pot.
    *
-   * Stops early on a non-positive marginal, which is what makes a capped piece
-   * report zero rather than a plausible-looking number. Past a hero's ceiling
-   * more of that flat stat is worth literally nothing, however many levels the
-   * horizon could pay for. */
-  function planPieceOverHorizon(cand, baseStats, weights, horizon) {
+   * Re-scoring against the SHARED running total is the whole point of doing it
+   * this way rather than costing each piece against today's loadout: once one
+   * piece has pushed a stat towards the hero's ceiling, the next level of
+   * another piece moving the same stat is worth less, and the pot moves on by
+   * itself. Six independent costings can't see that, and will happily spend
+   * everything twice over on the same stat.
+   *
+   * A piece that gains nothing drops out for good, which is safe rather than
+   * greedy-blind: gaining nothing means the hero is already past the ceiling on
+   * everything that piece moves, and every level bought afterwards can only
+   * push those same stats further past it. */
+  function allocateUpgradeXp(candidates, baseStats, weights, budget) {
     const running = { ...baseStats };
     let score = scoreLoadoutStats(running, weights);
-    const startScore = score;
     let spent = 0;
-    let levels = 0;
 
-    while (levels < cand.costs.length) {
-      const cost = cand.costs[levels];
-      if (spent + cost > horizon) break;
+    const tracks = candidates.map((cand) => ({
+      cand, levels: 0, xp: 0, benefit: 0, armyGains: null, dead: false,
+    }));
+
+    const shiftStats = (cand, sign) => {
       for (const [key, delta] of Object.entries(cand.perLevelDelta)) {
-        running[key] = (running[key] || 0) + delta;
+        running[key] = (running[key] || 0) + sign * delta;
       }
-      const trialScore = scoreLoadoutStats(running, weights);
-      if (trialScore <= score) {
-        // This level buys nothing — the hero is capped on everything this
-        // piece moves. Put it back and stop; later levels can only be worse.
-        for (const [key, delta] of Object.entries(cand.perLevelDelta)) {
-          running[key] -= delta;
-        }
-        break;
-      }
-      score = trialScore;
-      spent += cost;
-      levels += 1;
+    };
+
+    /** What one more level of this piece would be worth from where the split
+     * currently stands, leaving `running` exactly as it found it. */
+    const marginalGain = (cand) => {
+      shiftStats(cand, 1);
+      const trial = scoreLoadoutStats(running, weights);
+      shiftStats(cand, -1);
+      return trial - score;
+    };
+
+    // Which pieces are worth anything AT ALL, measured before a single XP is
+    // committed. A piece that ends up with nothing because the pot did more
+    // elsewhere is a different answer from one that is capped, and only a
+    // reading taken while the pot is still whole can tell the two apart.
+    for (const track of tracks) {
+      if (marginalGain(track.cand) <= 0) track.dead = true;
     }
 
-    const targetLevel = cand.item.level + levels;
+    for (;;) {
+      let best = null;
+      for (const track of tracks) {
+        if (track.dead || track.levels >= track.cand.costs.length) continue;
+        const gain = marginalGain(track.cand);
+        if (gain <= 0) { track.dead = true; continue; }
+        const cost = track.cand.costs[track.levels];
+        // Costs only climb and the pot only shrinks, so a level out of reach
+        // now stays out of reach — but the piece isn't finished, it's starved,
+        // and it keeps its remaining levels for the panel to report.
+        if (spent + cost > budget) continue;
+        // gain/cost against best.gain/best.cost, cross-multiplied: both costs
+        // are positive, and this keeps the comparison off floating-point
+        // division for ratios that are often within a hair of each other.
+        if (!best || gain * best.cost > best.gain * cost) best = { track, cost, gain };
+      }
+      if (!best) break;
+
+      const before = { ...running };
+      shiftStats(best.track.cand, 1);
+      score += best.gain;
+      spent += best.cost;
+      best.track.levels += 1;
+      best.track.xp += best.cost;
+      best.track.benefit += best.gain;
+
+      // Accumulated a purchase at a time rather than measured from the
+      // baseline at the end. The buff curve is non-linear, so a piece's honest
+      // share is what it added at the point it was actually bought — and
+      // shares totted up that way add back to the plan's own total, which
+      // measured-alone figures wouldn't. Hence minMove 0 too: one level often
+      // moves the buff by less than the display threshold, and dropping those
+      // steps would leave the rows adding up to visibly less than the total.
+      const step = armyCommandGains(before, running, 0);
+      if (step) {
+        const into = best.track.armyGains || (best.track.armyGains = {});
+        for (const [key, delta] of Object.entries(step)) {
+          into[key] = (into[key] || 0) + delta;
+        }
+      }
+    }
+
+    return {
+      tracks,
+      spent,
+      armyGains: armyCommandGains(baseStats, running),
+      // The cheapest level the split didn't buy: what says whether the leftover
+      // is small change or a level short.
+      cheapestUnbought: tracks.reduce((cheapest, track) => {
+        if (track.dead || track.levels >= track.cand.costs.length) return cheapest;
+        return Math.min(cheapest, track.cand.costs[track.levels]);
+      }, Infinity),
+    };
+  }
+
+  /** The accumulated movement a row is worth printing: the pieces buying a
+   * level or two of something the hero barely notices would otherwise each
+   * advertise a "+0.00%". Their XP still shows, which is the honest answer —
+   * they got a slice, it bought nothing you can see. */
+  function showableCommandGains(gains) {
+    if (!gains) return null;
+    const shown = {};
+    for (const [key, delta] of Object.entries(gains)) {
+      if (delta > MIN_SHOWN_COMMAND_MOVE) shown[key] = delta;
+    }
+    return shown;
+  }
+
+  /** One piece's slice of the pot, and what that slice buys it. */
+  function upgradePlanRow(track, spent) {
+    const cand = track.cand;
+    const targetLevel = cand.item.level + track.levels;
     const atTarget = projectStatsToLevel(cand.item.rawStats, cand.item.level, targetLevel);
     const statGains = {};
     for (const key of BREAKPOINT_STAT_ORDER) {
       const delta = (atTarget[key] || 0) - (cand.item.rawStats[key] || 0);
       if (Math.round(delta)) statGains[key] = delta;
     }
-
     return {
       item: cand.item,
-      slot: cand.slot,
-      levels,
-      xp: spent,
+      levels: track.levels,
+      xp: track.xp,
+      share: spent > 0 ? track.xp / spent : 0,
       targetLevel,
-      benefit: score - startScore,
+      benefit: track.benefit,
       statGains,
-      armyGains: armyCommandGains(baseStats, running),
-      levelsLeft: cand.costs.length - levels,
-      // Ran out of horizon rather than out of worthwhile levels — there's more
-      // to be had here if more XP goes in.
-      horizonBound: levels < cand.costs.length && spent + cand.costs[levels] > horizon,
-      capsAtLevel: cand.item.projectedMaxLevel,
+      armyGains: showableCommandGains(track.armyGains),
+      levelsLeft: cand.costs.length - track.levels,
+      // Stopped because the pot ran dry, not because the piece was finished:
+      // still gaining, still has levels left. A bigger budget buys more here.
+      wantsMore: !track.dead && track.levels < cand.costs.length,
     };
   }
 
-  /** Rank the equipped pieces by how much the next `horizon` XP would buy on
-   * each. Pieces that gain nothing — capped on every stat they move — come back
-   * separately, because "not worth levelling" is the useful answer there, not a
-   * zero-scoring row in the list. */
-  function buildUpgradePlan(loadout, weights, horizon) {
+  /** How the next `budget` XP splits across the equipped pieces, and what the
+   * loadout gets for it.
+   *
+   * The rows are one carve-up of one pot: their XP adds up to what the plan
+   * spends, and their Command gains add up to what it gains. Pieces that get
+   * nothing come back separately and split by WHY — capped, unweighted, or
+   * simply outbid by the others — because those want three different answers,
+   * and a zero-scoring row in the list would give the same one to all three. */
+  function buildUpgradePlan(loadout, weights, budget) {
     const candidates = upgradeCandidates(loadout);
     let equippedCount = 0;
     for (const slot of SLOT_ORDER) {
       if (loadout && loadout[slot] && itemById(slot, loadout[slot])) equippedCount++;
     }
     // The loadout as it stands today: the point on the hero's breakpoint curve
-    // that the first bought level moves from, and what every piece is measured
-    // against.
-    const baseStats = combinedStatsForLoadout(loadout);
+    // that the first bought level moves from, and what the split is measured
+    // against. Deliberately currentStats and not scoreStats — this panel prices
+    // the climb to the cap, so scoring its starting point AT the cap (which is
+    // what max-level scoring would do) would have every row measure a level it
+    // had already counted as bought, and report gains on top of gains.
+    const baseStats = combinedStatsForLoadout(loadout, currentStats);
+    const alloc = allocateUpgradeXp(candidates, baseStats, weights, budget);
 
     const rows = [];
     const capped = [];
     const unweighted = [];
+    const outbid = [];
     let cheapestStep = Infinity;
-    for (const cand of candidates) {
-      if (cand.costs[0] < cheapestStep) cheapestStep = cand.costs[0];
-      const row = planPieceOverHorizon(cand, baseStats, weights, horizon);
-      if (row.levels > 0 && row.benefit > 0) { rows.push(row); continue; }
-      if (row.levels > 0 || cand.costs[0] > horizon) continue; // horizon too small to say
+    for (const track of alloc.tracks) {
+      if (track.cand.costs[0] < cheapestStep) cheapestStep = track.cand.costs[0];
+      if (track.levels > 0) { rows.push(upgradePlanRow(track, alloc.spent)); continue; }
+      if (!track.dead) {
+        // Worth something, got nothing: every XP in the pot did more elsewhere
+        // (or the pot won't stretch to a single level anywhere).
+        outbid.push(track.cand.item);
+        continue;
+      }
       // Two very different reasons a piece gains nothing, and telling the user
       // the wrong one is worse than saying nothing: either the hero is past the
       // ceiling on what it moves, or it moves nothing this build cares about.
-      const movesSomethingWeighted = Object.keys(cand.perLevelDelta)
+      const movesSomethingWeighted = Object.keys(track.cand.perLevelDelta)
         .some((key) => weights[key]);
-      (movesSomethingWeighted ? capped : unweighted).push(cand.item);
+      (movesSomethingWeighted ? capped : unweighted).push(track.cand.item);
     }
     rows.sort((a, b) => b.benefit - a.benefit);
 
     return {
-      rows, capped, unweighted, equippedCount, horizon,
+      rows, capped, unweighted, outbid, equippedCount, budget,
+      spent: alloc.spent,
+      leftover: Math.max(0, budget - alloc.spent),
+      armyGains: alloc.armyGains,
+      cheapestUnbought: Number.isFinite(alloc.cheapestUnbought) ? alloc.cheapestUnbought : 0,
       cheapestStep: Number.isFinite(cheapestStep) ? cheapestStep : 0,
       upgradeableCount: candidates.length,
     };
@@ -3057,8 +3519,9 @@
   }
 
   /** The panel's heading is always on the page; only its body opens and closes.
-   * Collapsed it also skips building the rows — the plan costs a projection per
-   * equipped piece per horizon step, and nothing else on screen reads it. */
+   * Collapsed it also skips building the rows — the split costs a re-score of
+   * the whole loadout per piece per level it buys, and nothing else on screen
+   * reads it. */
   /** Demote a stat figure the ranking can't see. Both panels report every
    * command stat that MOVED, but only stats carrying a weight reach the score
    * behind the value bar — so a row can advertise "Defense +0.25%" and be
@@ -3085,8 +3548,8 @@
       return;
     }
 
-    const horizon = state.upgradeXpHorizon || DEFAULT_UPGRADE_XP_HORIZON;
-    const plan = buildUpgradePlan(activeLoadout() || {}, weights, horizon);
+    const budget = state.upgradeXpBudget || DEFAULT_UPGRADE_XP_BUDGET;
+    const plan = buildUpgradePlan(activeLoadout() || {}, weights, budget);
     upgradePlanEl.innerHTML = "";
 
     const names = (items) => items.map((it) => it.name).join(", ");
@@ -3105,16 +3568,38 @@
         ? "Nothing equipped yet — pick gear or auto-optimize, and this will say what's worth levelling."
         : !plan.upgradeableCount
           ? "Every piece in this loadout is already at its level cap."
-          : notes
-            ? `No piece gains anything from more levels.${notes}`
-            : `${horizon.toLocaleString()} XP isn't enough for a single level — `
-              + `the cheapest costs ${plan.cheapestStep.toLocaleString()} XP.`;
+          : plan.outbid.length
+            ? `${budget.toLocaleString()} XP isn't enough for a single level — `
+              + `the cheapest costs ${plan.cheapestStep.toLocaleString()} XP.`
+            : `No piece gains anything from more levels.${notes}`;
       return;
     }
 
+    // What the leftover means is the difference between "spend it all as
+    // listed" and "you're a few hundred XP short of one more level", so the
+    // summary says which rather than just reporting a remainder.
+    const spendNote = plan.leftover <= 0
+      ? "Spends all of it."
+      : plan.cheapestUnbought
+        ? `Spends ${plan.spent.toLocaleString()}; the ${plan.leftover.toLocaleString()} left over `
+          + `is short of the next level anywhere, cheapest at ${plan.cheapestUnbought.toLocaleString()} XP.`
+        : `Spends ${plan.spent.toLocaleString()} — nothing else in this loadout is worth levelling.`;
+    // The rows are shares of one pot, so their gains add up — and this is what
+    // they add up to. Worth stating: it's the figure the whole exercise is
+    // about, and no single row carries it.
+    const totalEntries = plan.armyGains ? Object.entries(plan.armyGains) : [];
+    const totalNote = totalEntries.length
+      ? ` Together that's ${totalEntries
+          .map(([key, delta]) => `${STAT_LABELS[key]} +${(delta * 100).toFixed(2)}%`)
+          .join(" · ")} Army command.`
+      : "";
+    const outbidNote = plan.outbid.length
+      ? ` Nothing for ${names(plan.outbid)} at this budget — every XP does more elsewhere.`
+      : "";
+
     upgradePlanSummaryEl.textContent =
-      `Where the next ${horizon.toLocaleString()} XP does the most good, best first. `
-      + `Each row is that XP spent on that piece alone.${notes}`;
+      `How to split the next ${budget.toLocaleString()} XP across this loadout, biggest share `
+      + `first. ${spendNote}${totalNote}${notes}${outbidNote}`;
 
     const best = plan.rows[0].benefit;
     for (const row of plan.rows) {
@@ -3144,11 +3629,13 @@
       const value = document.createElement("span");
       value.className = "upgrade-plan-value";
       value.textContent = `${row.xp.toLocaleString()} XP`;
-      value.title = row.horizonBound
-        ? `Uses ${row.xp.toLocaleString()} of the ${horizon.toLocaleString()} XP window; `
-          + `the next level costs more than what's left of it.`
-        : `Only ${row.xp.toLocaleString()} XP is worth spending here — `
-          + (row.levelsLeft ? "further levels buy nothing." : "that caps the piece.");
+      value.title = `${row.xp.toLocaleString()} of the ${budget.toLocaleString()} XP — `
+        + `${Math.round(row.share * 100)}% of the pot`
+        + (row.wantsMore
+          ? `, and this piece would take more of it if there were more to give.`
+          : row.levelsLeft
+            ? `, which is as far as this piece is worth taking.`
+            : `, which caps it.`);
       head.appendChild(value);
       li.appendChild(head);
 
@@ -3156,10 +3643,11 @@
       meta.className = "upgrade-plan-meta";
       const tail = row.levelsLeft === 0
         ? `caps it`
-        : row.horizonBound
-          ? `${row.levelsLeft} more available`
+        : row.wantsMore
+          ? `${row.levelsLeft} more if the budget grows`
           : `stop there — the last ${row.levelsLeft} buy nothing`;
-      meta.textContent = `Lv ${row.item.level} → ${row.targetLevel} · +${row.levels} levels · ${tail}`;
+      meta.textContent = `Lv ${row.item.level} → ${row.targetLevel} · `
+        + `+${row.levels} level${row.levels === 1 ? "" : "s"} · ${tail}`;
       li.appendChild(meta);
 
       if (armyEntries.length || flatText) {
@@ -3370,7 +3858,17 @@
     // not of any particular piece.
     const caveat = ` Neither the random affixes nor the quality roll is scored — `
       + `both are unknown until the piece is bought — so every row understates a `
-      + `little. Each row lists what its piece could roll.`;
+      + `little. Each row lists what its piece could roll.`
+      // The panel's usual premise is what the scrap XP buys you NOW, and
+      // max-level scoring suspends exactly that: the arrival level stops
+      // separating the candidates once every one of them is measured at its
+      // cap. That changes the question the order answers, so it's said up
+      // front rather than left to be inferred from the rows.
+      + (state.maxLevelScoring
+        ? ` Max level gear is on, so every piece — shop and equipped alike — is `
+          + `scored at its cap. This is the endgame buy order, not the one that `
+          + `does the most for you today.`
+        : "");
 
     // The empty-loadout case can't reach here — the panel doesn't open without
     // equipped gear (see `ready` above), so an empty plan means the shop lost.
@@ -3431,7 +3929,15 @@
         : replaced
           ? ` · the ${repl.xpInherited.toLocaleString()} XP from the scrap doesn't buy a level here`
           : "";
-      levels.textContent = `${arrival}${climb}`;
+      // Max-level scoring takes the arrival level out of the comparison
+      // entirely — both this piece and the one it replaces are scored at their
+      // caps — so the line has to stop reading as the basis for the gains
+      // below it. Said on every row rather than once in the summary, because
+      // it's the one line those gains would otherwise be read against.
+      const basis = state.maxLevelScoring
+        ? ` · scored at its Lv ${repl.projectedMaxLevel} cap, not on arrival`
+        : "";
+      levels.textContent = `${arrival}${climb}${basis}`;
       if (repl.xpWasted > 0) {
         levels.textContent += ` · ${repl.xpWasted.toLocaleString()} XP stranded at the cap`;
       }
@@ -3642,6 +4148,13 @@
     }
   }
 
+  /** The ledger's own note that its numbers are projections. Lives with the
+   * totals rather than with the toggle: the slot cards carry "Lvl 12 → 37" on
+   * every piece, but a stat total has nothing on it to give the basis away. */
+  function updateMaxLevelNotice() {
+    if (maxLevelNoticeEl) maxLevelNoticeEl.hidden = !state.maxLevelScoring;
+  }
+
   function refreshTotals() {
     // Equipping gear moves the hero along their breakpoint curves, so the
     // flat-stat divisors have to follow. Every loadout mutation ends here, which
@@ -3650,6 +4163,7 @@
     // optimizeLoadout), so what it leaves behind is whatever the loadout it
     // just applied deserves — which this then recomputes anyway.
     refreshBreakpointScale();
+    updateMaxLevelNotice();
     const { totals, setNotes } = computeTotals(activeLoadout());
     renderLedger(totals, setNotes);
     renderArmyCommand();
@@ -3678,8 +4192,10 @@
       state.loadoutsByOwner[hero.id] = { ...blank };
     }
     saveLoadouts();
-    state.activeOwner = NO_HERO_OWNER;
-    heroSelectEl.value = "";
+    // The hero stays selected: this empties every loadout, and being dropped
+    // to the scratch space on top of that means re-picking the hero before you
+    // can start rebuilding. Their loadout was just blanked with the rest.
+    ensureOwnerLoadout(state.activeOwner);
     refreshBreakpointScale();
     invalidatePendingLiveEquip();
     renderSlots();
@@ -3779,17 +4295,21 @@
     const lockedNote = lockedCount ? ` (${lockedCount} slot${lockedCount === 1 ? "" : "s"} left locked)` : "";
     const ctxOption = optimizeContextOptions().find((o) => o.value === state.optimizeContext);
     const ctxNote = ctxOption ? ` · ${ctxOption.label}` : "";
+    const maxLevelNote = state.maxLevelScoring ? " · gear at max level" : "";
     // Worth saying which one you got: an exhausted search is a proof, a
     // budget-capped one is just the best found so far.
     const searchNote = search.exhaustive
       ? ` Best of ${search.combinations.toLocaleString()} combinations.`
       : ` Stopped at ${search.leaves.toLocaleString()} of ${search.combinations.toLocaleString()} `
         + `combinations — best found, not provably the best.`;
-    showToast(`Auto-optimized for ${weightedNames.join(", ")}${ctxNote}${lockedNote}.${searchNote}`);
+    showToast(
+      `Auto-optimized for ${weightedNames.join(", ")}${ctxNote}${maxLevelNote}${lockedNote}.${searchNote}`
+    );
   }
 
   function switchOwner(newOwner) {
     state.activeOwner = newOwner;
+    saveActiveOwner();
     ensureOwnerLoadout(newOwner);
     refreshBreakpointScale();
     invalidatePendingLiveEquip();
@@ -3807,12 +4327,11 @@
     state.heroes = initialData.heroes;
     state.showUpgradePlan = loadPanelOpen(SHOW_UPGRADE_PLAN_STORAGE_KEY, false);
     state.showPvpPlan = loadPanelOpen(SHOW_PVP_PLAN_STORAGE_KEY, true);
-    state.upgradeXpHorizon = loadSavedUpgradeXpHorizon();
+    state.upgradeXpBudget = loadSavedUpgradeXpBudget();
     state.itemsBySlot = groupBySlot(annotateProjections(initialData.equipment));
     state.statScale = computeStatScale(initialData.equipment);
     state.availableStats = availableStats(initialData.equipment);
     state.availableRarities = availableRarities(initialData.equipment);
-    refreshBreakpointScale();
     state.knownSetSizes = initialData.knownSetSizes || {};
     state.isSampleData = !savedEquipment;
     state.isLive = false;
@@ -3822,13 +4341,31 @@
     state.lockedSlotsByOwner = loadSavedLockedSlots();
     state.customTroopPresets = loadSavedTroopPresets();
     state.gearMultipliers = loadSavedGearMultipliers();
-    state.activeOwner = NO_HERO_OWNER;
+    state.activeOwner = loadSavedActiveOwner();
+    // The saved hero may be gone, or back under a different id, since the last
+    // visit — the same problem a data swap has, so it gets the same treatment.
+    retainActiveOwner();
     ensureOwnerLoadout(state.activeOwner);
+    // Only now: the scale is read off the active hero standing in their
+    // loadout, and neither of those existed until this point.
+    refreshBreakpointScale();
+
+    restoreOptimizeSetup();
+    // The scale above was computed before the saved setup was known, and a
+    // restored max-level toggle changes the numbers it was taken from.
+    refreshStatScale();
+    if (optimizeMaxLevelEl) optimizeMaxLevelEl.checked = state.maxLevelScoring;
 
     renderHeroSelect();
     renderOptimizeContextSelect();
-    renderOptimizeWeightList();
-    updateOptimizeWeightBadge();
+    // A preset fills in only the stats the inventory had when it was picked,
+    // and this inventory may not be that one — so when the dropdown names a
+    // preset, re-derive the weights from it rather than trusting the saved
+    // list. Custom weights have nothing to re-derive from and stand as saved.
+    if (!reapplyActiveTroopPreset()) {
+      renderOptimizeWeightList();
+      updateOptimizeWeightBadge();
+    }
     updateTroopPresetControls();
     renderFilterMenu();
     updateFilterCountBadge();
@@ -3843,14 +4380,24 @@
     });
     optimizeClearBtnEl.addEventListener("click", () => {
       state.optimizeWeights = {};
+      // Same rule as editing a weight by hand or hitting Only: the weights are
+      // the player's now, so the dropdown must stop claiming a preset. Left
+      // naming one, it reads as "Archer is applied" over an empty weight list,
+      // and Optimize answers with "give at least one stat a weight first".
+      optimizeTroopSelectEl.value = "custom";
+      saveOptimizeSetup();
       renderOptimizeWeightList();
       updateOptimizeWeightBadge();
+    });
+    optimizeMaxLevelEl.addEventListener("change", () => {
+      setMaxLevelScoring(optimizeMaxLevelEl.checked);
     });
     optimizeContextSelectEl.addEventListener("change", () => {
       state.optimizeContext = optimizeContextSelectEl.value;
       // The choice is the player's from here on, so no later preset gets to
       // revert it — see presetAppliedScenario.
       forgetPresetScenario();
+      saveOptimizeSetup();
     });
     optimizeTroopSelectEl.addEventListener("change", () => {
       applyTroopPreset(optimizeTroopSelectEl.value);
@@ -3871,15 +4418,15 @@
     bindPanelToggle(
       pvpPlanToggleEl, "showPvpPlan", SHOW_PVP_PLAN_STORAGE_KEY, renderPvpBuyPlan,
     );
-    if (upgradePlanHorizonEl) {
-      upgradePlanHorizonEl.value = String(state.upgradeXpHorizon);
-      upgradePlanHorizonEl.addEventListener("input", () => {
-        const raw = Number(upgradePlanHorizonEl.value);
-        state.upgradeXpHorizon = Number.isFinite(raw) && raw > 0
+    if (upgradePlanBudgetEl) {
+      upgradePlanBudgetEl.value = String(state.upgradeXpBudget);
+      upgradePlanBudgetEl.addEventListener("input", () => {
+        const raw = Number(upgradePlanBudgetEl.value);
+        state.upgradeXpBudget = Number.isFinite(raw) && raw > 0
           ? Math.floor(raw)
-          : DEFAULT_UPGRADE_XP_HORIZON;
-        saveUpgradeXpHorizon();
-        // Only the plan depends on the horizon — the loadout, the ledger and
+          : DEFAULT_UPGRADE_XP_BUDGET;
+        saveUpgradeXpBudget();
+        // Only the plan depends on the budget — the loadout, the ledger and
         // the breakpoint scale are untouched by it, so this repaints just the
         // one panel instead of going through refreshTotals().
         renderUpgradePlan();
