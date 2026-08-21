@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auto-optimize Everything — Hero Armory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar topbar-sub">
+  <div class="topbar-title">
+    <span class="topbar-eyebrow">Hero Armory</span>
+    <h1>Auto-optimize Everything</h1>
+  </div>
+  <a href="index.html" class="topbar-back" title="Back to Loadout Builder" aria-label="Back to Loadout Builder">←</a>
+</header>
+
+<main class="sets-page batch-page">
+  <p class="sets-intro">
+    One pass over your whole roster: every hero gets auto-optimized in turn,
+    top of the list first. Gear is exclusive, so the order is the whole point —
+    whoever is higher up gets first pick, and everyone below them builds from
+    what's left.
+  </p>
+
+  <section id="batch-explainer" class="batch-explainer" aria-label="How this works">
+    <h2 class="panel-heading">
+      <button id="batch-explainer-toggle" class="panel-toggle" type="button"
+              aria-expanded="true" aria-controls="batch-explainer-body">
+        <span class="panel-toggle-caret" aria-hidden="true">&#9656;</span>How it works
+      </button>
+    </h2>
+    <ol id="batch-explainer-body" class="batch-explainer-list">
+      <li>
+        <strong>Every hero in the list is stripped first.</strong> Nothing is
+        assigned on the basis of who happened to be wearing it — a piece goes to
+        the highest-priority hero who wants it. Slots you've locked in the
+        builder are left alone at both ends: never stripped, never re-picked.
+      </li>
+      <li>
+        <strong>Then each hero is filled, in order.</strong> Each one is scored
+        with its own preset and set bonuses, using exactly the same optimizer the
+        <em>Auto-optimize</em> menu runs for a single hero.
+      </li>
+      <li>
+        <strong>Your own preset defaults are used.</strong> If you've saved
+        weights for a preset with <em>Save as default for</em>, those are the
+        weights a hero on that preset is built with — not the built-in ones.
+      </li>
+      <li>
+        <strong>A hero set to <em>Don't optimize</em> ends up with nothing
+        equipped.</strong> That's what putting one at the bottom with no preset
+        is for: their gear goes back into the pool for the heroes above them.
+      </li>
+      <li>
+        <strong>Instanced loadouts are never touched.</strong> Those are your
+        dungeon sets — they keep their gear, and that gear stays reserved for
+        them, exactly as it would be in a single-hero optimize.
+      </li>
+    </ol>
+  </section>
+
+  <section id="batch-empty" class="batch-empty" hidden>
+    <h2 class="panel-heading">No import loaded</h2>
+    <p class="batch-empty-text">
+      There's nothing to optimize yet — the app is showing sample data, not your
+      account. Load your equipment export and this page will fill in with your
+      own heroes, ready to build on your say-so.
+    </p>
+    <div class="batch-empty-actions">
+      <button id="batch-load-csv-btn" class="btn-ghost" type="button">Load equipment CSV…</button>
+      <button id="batch-paste-csv-btn" class="btn-ghost" type="button">Paste equipment CSV…</button>
+    </div>
+    <input id="batch-load-csv-input" type="file" accept=".csv,.txt,text/csv,text/plain" hidden>
+  </section>
+
+  <section id="batch-config" class="batch-config" hidden aria-label="Optimize order and presets">
+    <h2 class="panel-heading">Configuration</h2>
+
+    <div class="batch-scoring">
+      <p class="batch-scoring-note" id="batch-basis-note"></p>
+      <label class="batch-scoring-row">
+        <input type="checkbox" id="batch-max-level">
+        <span>Optimize for max level gear</span>
+      </label>
+    </div>
+
+    <p class="batch-config-hint">
+      Highest priority at the top. Change a hero's preset or set bonuses with
+      the dropdowns, and move them with the arrows. Your changes are saved as you
+      make them, by hero name, so they survive a re-import.
+    </p>
+    <ol id="batch-hero-list" class="batch-hero-list"></ol>
+
+    <div class="batch-actions">
+      <p class="batch-run-hint" id="batch-run-hint">
+        Nothing is equipped until you run this. Once you have, changing a
+        preset, its set bonuses or the order rebuilds the roster on the spot.
+      </p>
+      <button id="batch-reset-btn" class="btn-ghost" type="button">Reset to recommended</button>
+      <button id="batch-run-btn" class="btn-ghost batch-run-btn" type="button">Optimize everything</button>
+    </div>
+    <p id="batch-progress" class="batch-progress" hidden></p>
+    <div id="batch-results" class="batch-results" hidden></div>
+  </section>
+</main>
+
+<div id="batch-paste-overlay" class="picker-overlay" hidden>
+  <div class="picker paste-csv-picker" role="dialog" aria-modal="true" aria-labelledby="batch-paste-title">
+    <div class="picker-head">
+      <h2 id="batch-paste-title">Paste equipment CSV</h2>
+      <button id="batch-paste-close" class="btn-ghost" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="paste-csv-body">
+      <p class="paste-csv-hint">
+        In the game, open the equipment export screen and copy the CSV content,
+        then paste it below. Nothing here is uploaded anywhere — it's parsed
+        entirely in your browser.
+      </p>
+      <textarea id="batch-paste-textarea" class="paste-csv-textarea" placeholder="record_type,item_id,equipment_definition_id,..."></textarea>
+      <div class="paste-csv-actions">
+        <button id="batch-paste-submit" class="btn-ghost" type="button">Load pasted CSV</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="sample-data.js"></script>
+<script src="hero-breakpoints.js"></script>
+<script src="gear-progression.js"></script>
+<script src="pvp-shop.js"></script>
+<script src="set-bonuses.js"></script>
+<script src="csv-import.js"></script>
+<script src="app.js"></script>
+<script src="auto-optimize.js"></script>
+</body>
+</html>

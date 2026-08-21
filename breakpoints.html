@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stat Breakpoints — Hero Armory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar topbar-sub">
+  <div class="topbar-title">
+    <span class="topbar-eyebrow">Hero Armory</span>
+    <h1>Stat Breakpoints</h1>
+  </div>
+  <a href="index.html" class="topbar-back" title="Back to Loadout Builder" aria-label="Back to Loadout Builder">←</a>
+</header>
+
+<main class="sets-page">
+  <p class="sets-intro">
+    A hero's raw Attack, Defence and Health aren't the buff your troops get —
+    the game runs each one through a diminishing-returns curve that ends in a
+    hard ceiling set by the hero's rarity. Below is the raw stat where each
+    rarity first hits that ceiling, and the buff it caps out at. Past the
+    number shown, more of that flat stat is worth exactly nothing — it's the
+    same total the Army command panel counts down to, gear included.
+  </p>
+
+  <div class="set-card">
+    <div class="breakpoints-table-scroll">
+      <table class="breakpoints-table" id="breakpoints-table">
+        <thead>
+          <tr>
+            <th class="breakpoints-stat-col">Rarity</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="sets-intro breakpoints-footnote">
+    Every figure comes from a curve fitted to observed heroes. Epic is the only
+    rarity with readings sitting on all three of its ceilings; Legendary and
+    Rare rest on fewer, and the bottom two are extrapolated from the pattern the
+    others set rather than measured. Heroes whose rarity the export doesn't
+    spell out are scored as <span id="breakpoints-default-rarity"></span>.
+  </p>
+</main>
+
+<script src="sample-data.js"></script>
+<script src="hero-breakpoints.js"></script>
+<script>
+  (function () {
+    const table = document.getElementById("breakpoints-table");
+    const headRow = table.tHead.rows[0];
+    const tbody = table.tBodies[0];
+
+    /** Six- and seven-figure raw stats need to be scannable more than they need
+     * to be exact — the exact figure goes in the cell's title. */
+    function compact(raw) {
+      if (raw >= 1e6) return (raw / 1e6).toFixed(2) + "M";
+      if (raw >= 1e4) return Math.round(raw / 1000) + "K";
+      return String(Math.round(raw));
+    }
+
+    function cell(tag, className, text) {
+      const el = document.createElement(tag);
+      if (className) el.className = className;
+      if (text !== undefined) el.textContent = text;
+      return el;
+    }
+
+    for (const [statKey] of Object.entries(BREAKPOINT_STATS)) {
+      headRow.appendChild(cell("th", null, STAT_LABELS[statKey]));
+    }
+
+    // Highest rarity first — RARITY_ORDER runs the other way, and the rarity
+    // you're chasing a ceiling for is almost always at the top.
+    for (const rarity of [...RARITY_ORDER].reverse()) {
+      const caps = HERO_BREAKPOINTS[rarity];
+      if (!caps) continue;
+
+      const row = cell("tr", "rarity-" + rarity);
+      const label = cell("th", "breakpoints-stat-col");
+      label.scope = "row";
+      label.appendChild(cell("span", "breakpoints-rarity-name", rarity));
+      row.appendChild(label);
+
+      for (const [statKey, { kind }] of Object.entries(BREAKPOINT_STATS)) {
+        const bp = caps[kind];
+        const td = document.createElement("td");
+        if (!bp) {
+          td.textContent = "—";
+          row.appendChild(td);
+          continue;
+        }
+        td.title = `${bp.statAtCap.toLocaleString()} ${STAT_LABELS[statKey]} caps `
+          + `a ${rarity} hero at +${(bp.cap * 100).toFixed(1)}% to your troops — `
+          + `anything past it adds nothing.`;
+        td.appendChild(cell("span", "breakpoints-raw", compact(bp.statAtCap)));
+        td.appendChild(cell("span", "breakpoints-percent", `+${(bp.cap * 100).toFixed(1)}%`));
+        row.appendChild(td);
+      }
+      tbody.appendChild(row);
+    }
+
+    document.getElementById("breakpoints-default-rarity").textContent = DEFAULT_HERO_RARITY;
+  })();
+</script>
+</body>
+</html>
