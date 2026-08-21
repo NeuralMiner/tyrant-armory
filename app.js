@@ -1025,6 +1025,9 @@
 
   const SYNC_SERVER_URL = "http://127.0.0.1:5183";
 
+  const SYNC_AVAILABLE = ["localhost", "127.0.0.1", "[::1]", "::1", ""]
+    .includes(location.hostname);
+
   /** Single entry point for every sync-server request. Throws an Error whose
    * message distinguishes "couldn't reach it at all" (network failure, e.g.
    * nothing listening on the port) from "reached it, but it returned an
@@ -4794,10 +4797,13 @@
     });
     pasteCsvSubmitEl.addEventListener("click", handlePasteCsvSubmit);
 
-    syncGearBtnEl.addEventListener("click", () => {
-      closeDataMenu();
-      handleSyncGear();
-    });
+    if (SYNC_AVAILABLE) {
+      syncGearBtnEl.hidden = false;
+      syncGearBtnEl.addEventListener("click", () => {
+        closeDataMenu();
+        handleSyncGear();
+      });
+    }
 
     loadLoadoutsBtnEl.addEventListener("click", () => {
       closeDataMenu();
