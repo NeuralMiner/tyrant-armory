@@ -32,6 +32,10 @@ const EQUIPMENT_DEF_ID_TO_SET = {
   warden_ring: "warden",
   warden_aegis: "warden",
   warden_helm: "warden",
+  shadowsteel_blade: "crypt",
+  crypt_wardens_plate: "crypt",
+  wraith_helm: "crypt",
+  phantom_greaves: "crypt",
 };
 
 /** Minimal RFC4180 CSV parser: handles quoted fields, embedded commas,

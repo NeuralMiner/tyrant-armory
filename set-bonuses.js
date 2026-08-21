@@ -74,6 +74,17 @@ const SET_BONUS_DEFS = {
       { pieces: 6, bonuses: { pvpDefense: 0.01 } },
     ],
   },
+  crypt: {
+    name: "Shadow of the Crypt",
+    appliesIn: "Daily Dungeon",
+    context: "dailyDungeon",
+    totalPieces: 4,
+    memberNames: ["Shadowsteel Blade", "Crypt Warden's Plate", "Wraith Helm", "Phantom Greaves"],
+    tiers: [
+      { pieces: 2, bonuses: { defensePercent: 0.03 } },
+      { pieces: 4, bonuses: { defensePercent: 0.06, healthPercent: 0.06 } },
+    ],
+  },
 };
 
 /**
